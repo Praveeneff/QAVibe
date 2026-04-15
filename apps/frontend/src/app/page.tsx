@@ -1,15 +1,25 @@
-import type { ApiResponse } from "@qavibe/shared-types";
+import Link from "next/link";
 
 export default function Home() {
-  const response: ApiResponse<string> = {
-    data: "QAVibe is running",
-    success: true,
-  };
-
   return (
-    <main>
+    <main style={{ padding: 32, fontFamily: "sans-serif", color: "#eee", background: "#111", minHeight: "100vh" }}>
       <h1>QAVibe</h1>
-      <p>{response.data}</p>
+      <p style={{ color: "#888" }}>Quality Assurance Management</p>
+      <Link
+        href="/test-cases"
+        style={{
+          display: "inline-block",
+          marginTop: 16,
+          padding: "10px 20px",
+          background: "#0070f3",
+          color: "#fff",
+          borderRadius: 4,
+          textDecoration: "none",
+          fontSize: 14,
+        }}
+      >
+        View Test Cases →
+      </Link>
     </main>
   );
 }

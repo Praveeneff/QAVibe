@@ -5,3 +5,13 @@ build
 .env
 .env.local
 *.tsbuildinfo
+*.db
+*.db-journal
+
+# AI session memory
+.claude/
+
+# Test artifacts
+*.xlsx
+*.json
+generate_*.py
