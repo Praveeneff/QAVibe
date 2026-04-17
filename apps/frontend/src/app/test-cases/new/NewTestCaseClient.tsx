@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import TestCaseForm from "../../../components/TestCaseForm";
-import { createTestCase, getSuites, createSuite, type TestSuite } from "../../../lib/api";
+import { createTestCase, getSuites, createSuite, getActiveProjectId, type TestSuite } from "../../../lib/api";
 import type { TestCase } from "../../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
@@ -183,6 +183,7 @@ export default function NewTestCaseClient({ initialSuiteId }: Props) {
     setSaveMsg("");
     let saved = 0;
     let failed = 0;
+    const projectId = getActiveProjectId();
     for (const i of selected) {
       const tc = suggestions[i];
       if (!tc) continue;
@@ -200,7 +201,8 @@ export default function NewTestCaseClient({ initialSuiteId }: Props) {
           severity: tc.severity ?? "medium",
           status: "active",
           suiteId: selectedSuiteId || null,
-        });
+          ...(projectId ? { projectId } : {}),
+        } as any);
         saved++;
       } catch {
         failed++;

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSuites, type TestSuite, type TestCase } from "../../lib/api";
+import { getSuites, getActiveProjectId, type TestSuite, type TestCase } from "../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
 
@@ -167,6 +167,8 @@ function GenerateCodebasePageInner() {
       if (suiteId)               form.append("suiteId", suiteId);
       if (focus.trim())          form.append("focus", focus.trim());
       form.append("maxCases", String(maxCases));
+      const projectId = getActiveProjectId();
+      if (projectId) form.append("projectId", projectId);
 
       const token = getStoredToken();
       const res = await fetch(`${BASE_URL}/ai/generate-from-codebase`, {
@@ -345,9 +347,9 @@ function GenerateCodebasePageInner() {
             <input
               type="number"
               min={1}
-              max={50}
+              max={200}
               value={maxCases}
-              onChange={(e) => setMaxCases(Math.min(50, Math.max(1, parseInt(e.target.value, 10) || 30)))}
+              onChange={(e) => setMaxCases(Math.min(200, Math.max(1, parseInt(e.target.value, 10) || 30)))}
               style={inputStyle}
             />
           </label>

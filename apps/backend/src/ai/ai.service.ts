@@ -17,7 +17,7 @@ export const AI_PROVIDER_TOKEN = "AI_PROVIDER_TOKEN";
 // Survives request lifecycle; resets on server restart (intentional).
 const providerFailedAt = new Map<string, number>();
 const PROVIDER_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-const CALL_TIMEOUT_MS = 10_000; // 10 seconds per provider call
+const CALL_TIMEOUT_MS = 60_000; // 60 seconds per provider call
 
 function isProviderOnCooldown(key: string): boolean {
   const failedAt = providerFailedAt.get(key);
@@ -98,7 +98,7 @@ export class AiService {
 
   // ── Public entry points ──────────────────────────────────────────────────
 
-  async generateTestCases(input: string, opts?: GenerateOpts): Promise<{ cases: any[]; suggestedSuite?: string }> {
+  async generateTestCases(input: string, opts?: GenerateOpts, userId?: string): Promise<{ cases: any[]; suggestedSuite?: string }> {
     const { provider, model, apiKey } = opts ?? {};
 
     const primaryModel = model ?? ((!provider || provider === "gemini") ? "gemini-2.5-flash" : undefined);
@@ -126,7 +126,7 @@ export class AiService {
     //   2. gemini-2.0-flash        — separate quota bucket
     //   3. gemini-2.0-flash-lite   — lightest, highest rate limits
     //   4-7. OpenRouter free-tier models (if OPENROUTER key set)
-    //   8. OpenRouter google/gemini-flash-1.5 — Gemini on different infra (if key set)
+    //   8. OpenRouter google/gemini-2.0-flash-exp:free — Gemini on different infra (if key set)
 
     const hasGroqKey = !!process.env.GROQ_API_KEY;
     const hasOpenRouterKey = !!(process.env.AI_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY);
@@ -192,9 +192,9 @@ export class AiService {
       // Gemini Flash 1.5 via OpenRouter — same model, different infrastructure,
       // gives a second path to Gemini when the direct API is overloaded.
       chain.push({
-        label: "openrouter/google/gemini-flash-1.5 (Gemini via OpenRouter infra, final fallback)",
+        label: "openrouter/google/gemini-2.0-flash-exp:free (Gemini via OpenRouter, final fallback)",
         svc: this.openrouter,
-        model: "google/gemini-flash-1.5",
+        model: "google/gemini-2.0-flash-exp:free",
         apiKey: undefined,
       });
     }
@@ -231,8 +231,16 @@ export class AiService {
             caseCount: cases.length,
             promptTokens: tokens ?? null,
             fallbackFrom: lastSkippedLabel || null,
+            userId: userId ?? null,
           },
         }).catch((err) => console.error("[AI] Failed to write generation log:", err));
+
+        if (userId && tokens) {
+          this.prisma.user.update({
+            where: { id: userId },
+            data: { tokenUsed: { increment: tokens } },
+          }).catch(() => {});
+        }
 
         return { cases, suggestedSuite };
       } catch (error) {
@@ -265,6 +273,7 @@ export class AiService {
   async generateTestCasesWithPrompt(
     userMessage: string,
     systemPrompt: string,
+    userId?: string,
   ): Promise<{ cases: any[]; tokens?: number }> {
     const chain = this.buildChain();
 
@@ -277,12 +286,33 @@ export class AiService {
       }
 
       console.log(`[AI] Trying ${step.label}…`);
+      const t0 = Date.now();
       try {
         const result = await callWithTimeout(
           () => step.svc.generateTestCases(userMessage, { model: step.model, apiKey: step.apiKey, systemPrompt }),
           CALL_TIMEOUT_MS,
         );
+        const latencyMs = Date.now() - t0;
         providerFailedAt.delete(step.label);
+
+        this.prisma.aiGenerationLog.create({
+          data: {
+            provider: step.label,
+            latencyMs,
+            caseCount: result.cases.length,
+            promptTokens: result.tokens ?? null,
+            fallbackFrom: lastSkippedLabel || null,
+            userId: userId ?? null,
+          },
+        }).catch((err) => console.error("[AI] Failed to write generation log:", err));
+
+        if (userId && result.tokens) {
+          this.prisma.user.update({
+            where: { id: userId },
+            data: { tokenUsed: { increment: result.tokens } },
+          }).catch(() => {});
+        }
+
         return result;
       } catch (error) {
         const { skip, reason } = classifyError(error);
@@ -331,9 +361,9 @@ export class AiService {
 
     if (hasOpenRouterKey) {
       chain.push({
-        label: "openrouter/google/gemini-flash-1.5 (Gemini via OpenRouter infra, final fallback)",
+        label: "openrouter/google/gemini-2.0-flash-exp:free (Gemini via OpenRouter, final fallback)",
         svc: this.openrouter,
-        model: "google/gemini-flash-1.5",
+        model: "google/gemini-2.0-flash-exp:free",
         apiKey: undefined,
       });
     }

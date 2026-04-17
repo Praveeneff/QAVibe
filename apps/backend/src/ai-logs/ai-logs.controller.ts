@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, UseGuards, Request } from "@nestjs/common";
 import { AiLogsService } from "./ai-logs.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 
@@ -20,5 +20,10 @@ export class AiLogsController {
   @Get("recent")
   getRecentLogs() {
     return this.aiLogsService.getRecentLogs();
+  }
+
+  @Get("my-logs")
+  getMyLogs(@Request() req: any) {
+    return this.aiLogsService.getMyLogs(req.user.id ?? req.user.sub);
   }
 }

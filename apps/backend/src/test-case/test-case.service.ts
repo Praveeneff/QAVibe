@@ -24,6 +24,8 @@ export class TestCaseService {
     page?: number;
     limit?: number;
     fields?: string;
+    projectId?: string;
+    assignedTo?: string;
   } = {}) {
     const {
       suiteId,
@@ -35,6 +37,8 @@ export class TestCaseService {
       page = 1,
       limit = 20,
       fields,
+      projectId,
+      assignedTo,
     } = params;
 
     const idOnly = fields === "id";
@@ -57,10 +61,12 @@ export class TestCaseService {
 
     // ── Exact-match filters ───────────────────────────────────────────────────
     const exactFilters: Prisma.TestCaseWhereInput = {
-      ...(category ? { category } : {}),
-      ...(severity ? { severity } : {}),
-      ...(priority ? { priority } : {}),
-      ...(status   ? { status   } : {}),
+      ...(category   ? { category   } : {}),
+      ...(severity   ? { severity   } : {}),
+      ...(priority   ? { priority   } : {}),
+      ...(status     ? { status     } : {}),
+      ...(projectId  ? { projectId  } : {}),
+      ...(assignedTo ? { assignedTo } : {}),
     };
 
     const where: Prisma.TestCaseWhereInput = {
@@ -181,14 +187,10 @@ export class TestCaseService {
   }
 
   private async generateTcId(): Promise<string> {
-    const result = await this.prisma.$queryRaw<{ max_seq: number }[]>`
-      SELECT COALESCE(
-        MAX(CAST(SUBSTRING("tcId" FROM 4) AS INTEGER)), 0
-      ) as max_seq
-      FROM "TestCase"
-      WHERE "tcId" ~ '^TC-[0-9]+$'
+    const result = await this.prisma.$queryRaw<{ nextval: bigint }[]>`
+      SELECT nextval('tc_id_seq')
     `;
-    const nextSeq = (result[0]?.max_seq ?? 0) + 1;
+    const nextSeq = Number(result[0].nextval);
     return `TC-${String(nextSeq).padStart(4, "0")}`;
   }
 
@@ -205,12 +207,15 @@ export class TestCaseService {
           err?.code === "P2002" &&
           err?.meta?.target?.includes("tcId")
         ) {
-          await new Promise((r) => setTimeout(r, 50 * (attempt + 1)));
+          const baseDelay = 50 * (attempt + 1);
+          const jitter = Math.floor(Math.random() * 50);
+          await new Promise((r) => setTimeout(r, baseDelay + jitter));
           continue;
         }
         throw err;
       }
     }
+    throw new Error(`Failed to generate unique tcId after ${retries} attempts`);
   }
 
   async update(
@@ -229,6 +234,13 @@ export class TestCaseService {
 
   remove(id: string) {
     return this.prisma.testCase.delete({ where: { id } });
+  }
+
+  async assignTestCase(id: string, assignedTo: string | null): Promise<any> {
+    return this.prisma.testCase.update({
+      where: { id },
+      data: { assignedTo },
+    });
   }
 
   async importFromCsv(

@@ -9,13 +9,22 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   passwordHash String
   name         String
-  role         Role     @default(tester)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  role         Role      @default(tester)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tokenUsed    Int       @default(0)
+  tokenResetAt DateTime?
+
+  ownedProjects      Project[]        @relation("ProjectOwner")
+  projectMemberships ProjectMember[]
+  assignedTestCases  TestCase[]       @relation("TestCaseAssignee")
+  assignedTestRuns   TestRun[]        @relation("TestRunAssignee")
+  tokenLimits        UserTokenLimit[]
+  aiLogs             AiGenerationLog[]
 }
 
 model TestCase {
@@ -37,8 +46,12 @@ model TestCase {
   severity       String       @default("medium")
   suiteId        String?
   createdBy      String?
+  projectId      String?
+  assignedTo     String?
   suite          TestSuite?   @relation(fields: [suiteId], references: [id])
   results        TestResult[]
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assignee       User?        @relation("TestCaseAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
 }
 
 model TestSuite {
@@ -47,11 +60,13 @@ model TestSuite {
   description String?
   depth       Int         @default(0) // 0=Suite, 1=Sub-suite, 2=Group
   parentId    String?
+  projectId   String?
   parent      TestSuite?  @relation("SuiteTree", fields: [parentId], references: [id])
   children    TestSuite[] @relation("SuiteTree")
   createdAt   DateTime    @default(now())
   createdBy   String?
   testCases   TestCase[]
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }
 
 model TestRun {
@@ -66,7 +81,11 @@ model TestRun {
   device       String?
   createdBy    String?
   sourceRunId  String?
+  projectId    String?
+  assignedTo   String?
   results      TestResult[]
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  assignee     User?        @relation("TestRunAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
 }
 
 model TestResult {
@@ -100,9 +119,59 @@ model AiGenerationLog {
   caseCount    Int
   fallbackFrom String?
   createdAt    DateTime @default(now())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
 enum Role {
   admin
   tester
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner       User             @relation("ProjectOwner", fields: [createdBy], references: [id])
+  members     ProjectMember[]
+  testCases   TestCase[]
+  testSuites  TestSuite[]
+  testRuns    TestRun[]
+  tokenLimits UserTokenLimit[]
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
+}
+
+model UserTokenLimit {
+  id          String   @id @default(cuid())
+  userId      String
+  projectId   String?
+  limitTokens Int      @default(50000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
 }

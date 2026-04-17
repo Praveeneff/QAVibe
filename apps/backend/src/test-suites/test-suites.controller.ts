@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
   UseGuards,
@@ -20,14 +21,14 @@ export class TestSuitesController {
   constructor(private readonly testSuitesService: TestSuitesService) {}
 
   @Get("test-suites")
-  getAllSuites() {
-    return this.testSuitesService.getAllSuites();
+  getAllSuites(@Query("projectId") projectId?: string) {
+    return this.testSuitesService.getAllSuites(projectId);
   }
 
   @Post("test-suites")
   @UseGuards(JwtAuthGuard)
   createSuite(@Body() body: CreateSuiteDto) {
-    return this.testSuitesService.createSuite(body.name, body.description, body.parentId);
+    return this.testSuitesService.createSuite(body.name, body.description, body.parentId, body.projectId);
   }
 
   @Patch("test-suites/:id")

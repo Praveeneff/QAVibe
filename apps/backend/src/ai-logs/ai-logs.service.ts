@@ -74,6 +74,23 @@ export class AiLogsService {
     return rows.reverse();
   }
 
+  async getMyLogs(userId: string) {
+    return this.prisma.aiGenerationLog.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        provider: true,
+        latencyMs: true,
+        caseCount: true,
+        promptTokens: true,
+        fallbackFrom: true,
+        createdAt: true,
+      },
+    });
+  }
+
   getRecentLogs() {
     return this.prisma.aiGenerationLog.findMany({
       orderBy: { createdAt: "desc" },

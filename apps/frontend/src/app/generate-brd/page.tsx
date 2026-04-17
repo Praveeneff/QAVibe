@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSuites, type TestSuite, type TestCase } from "../../lib/api";
+import { getSuites, getActiveProjectId, type TestSuite, type TestCase } from "../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
 
@@ -138,6 +138,8 @@ function GenerateBrdPageInner() {
       if (suiteId) form.append("suiteId", suiteId);
       form.append("maxCases", String(maxCases));
       form.append("useModules", useModules ? "true" : "false");
+      const projectId = getActiveProjectId();
+      if (projectId) form.append("projectId", projectId);
 
       const token = getStoredToken();
       const res = await fetch(`${BASE_URL}/ai/generate-from-brd`, {
@@ -278,9 +280,9 @@ function GenerateBrdPageInner() {
             <input
               type="number"
               min={5}
-              max={50}
+              max={200}
               value={maxCases}
-              onChange={(e) => setMaxCases(Math.min(50, Math.max(5, parseInt(e.target.value, 10) || 20)))}
+              onChange={(e) => setMaxCases(Math.min(200, Math.max(5, parseInt(e.target.value, 10) || 20)))}
               style={inputStyle}
             />
           </label>

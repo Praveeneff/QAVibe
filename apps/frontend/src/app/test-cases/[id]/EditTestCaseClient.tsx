@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TestCaseForm from "../../../components/TestCaseForm";
-import { updateTestCase, deleteTestCase, type TestCase } from "../../../lib/api";
+import { updateTestCase, deleteTestCase, getProjectMembers, getActiveProjectId, type TestCase } from "../../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { getStoredToken } from "@/context/AuthContext";
 import HistoryPanel from "./HistoryPanel";
 
 interface Props {
@@ -20,9 +21,22 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
   // Incrementing key forces TestCaseForm to remount (re-read initial values) on restore
   const [formKey, setFormKey] = useState(0);
 
-  const [deleting,     setDeleting]     = useState(false);
-  const [showHistory,  setShowHistory]  = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+  const [showHistory,   setShowHistory]   = useState(false);
   const [restoreNotice, setRestoreNotice] = useState("");
+
+  const [members,    setMembers]    = useState<any[]>([]);
+  const [assignedTo, setAssignedTo] = useState<string | null>(
+    (initialTestCase as any).assignedTo ?? null,
+  );
+
+  useEffect(() => {
+    const projectId = getActiveProjectId();
+    const token = getStoredToken();
+    if (projectId && token) {
+      getProjectMembers(projectId, token).then(setMembers).catch(() => {});
+    }
+  }, []);
 
   if (loading) return null;
   const isAdmin = user?.role === "admin";
@@ -68,8 +82,51 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
         key={formKey}
         initial={currentTestCase}
         excludeId={currentTestCase.id}
-        onSubmit={(data) => updateTestCase(currentTestCase.id, data)}
+        onSubmit={(data) => updateTestCase(currentTestCase.id, { ...data, assignedTo })}
       />
+
+      {/* Assigned To — shown when project members are available */}
+      {members.length > 0 && (
+        <div style={{ marginTop: 16, maxWidth: 560 }}>
+          <div style={{
+            fontSize: 11,
+            color: "#666",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 8,
+            borderBottom: "1px solid #1e1e1e",
+            paddingBottom: 6,
+          }}>
+            Assignment
+          </div>
+          <label style={{ display: "block", fontSize: 14 }}>
+            Assigned To
+            <select
+              value={assignedTo ?? ""}
+              onChange={(e) => setAssignedTo(e.target.value || null)}
+              style={{
+                display: "block",
+                width: "100%",
+                marginTop: 4,
+                padding: "6px 8px",
+                fontSize: 14,
+                boxSizing: "border-box" as const,
+                background: "#1a1a1a",
+                color: "#eee",
+                border: "1px solid #444",
+                borderRadius: 4,
+              }}
+            >
+              <option value="">Unassigned</option>
+              {members.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.user?.email ?? m.userId}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
 
       {/* History toggle + delete */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #222", display: "flex", gap: 10, alignItems: "center" }}>

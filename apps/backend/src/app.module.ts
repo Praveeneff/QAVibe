@@ -10,6 +10,8 @@ import { AiModule } from "./ai/ai.module";
 import { TestSuitesModule } from "./test-suites/test-suites.module";
 import { AiLogsModule } from "./ai-logs/ai-logs.module";
 import { AuthModule } from "./auth/auth.module";
+import { ProjectsModule } from "./projects/projects.module";
+import { AdminModule } from "./admin/admin.module";
 
 const envPath = path.resolve(process.cwd(), ".env");
 console.log("Loading .env from:", envPath);
@@ -28,6 +30,8 @@ console.log("ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSI
     TestSuitesModule,
     AiLogsModule,
     AuthModule,
+    ProjectsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

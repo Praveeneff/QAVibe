@@ -9,9 +9,10 @@ import {
   type ReactNode,
 } from "react";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-const TOKEN_KEY = "qavibe_token";
-const USER_KEY  = "qavibe_user";
+const BASE_URL   = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const TOKEN_KEY  = "qavibe_token";
+const USER_KEY   = "qavibe_user";
+const PROJECT_KEY = "qavibe_project";
 
 export interface AuthUser {
   id:        string;
@@ -22,30 +23,53 @@ export interface AuthUser {
   updatedAt: string;
 }
 
+export interface ActiveProject {
+  id:          string;
+  name:        string;
+  description: string | null;
+  role:        "OWNER" | "MEMBER";
+}
+
 interface AuthState {
-  user:     AuthUser | null;
-  token:    string | null;
-  loading:  boolean;
-  login:    (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
-  logout:   () => void;
+  user:             AuthUser | null;
+  token:            string | null;
+  loading:          boolean;
+  activeProject:    ActiveProject | null;
+  setActiveProject: (project: ActiveProject | null) => void;
+  login:            (email: string, password: string) => Promise<void>;
+  register:         (email: string, password: string, name: string) => Promise<void>;
+  logout:           () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user,    setUser]    = useState<AuthUser | null>(null);
-  const [token,   setToken]   = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // true until localStorage is read
+  const [user,          setUser]          = useState<AuthUser | null>(null);
+  const [token,         setToken]         = useState<string | null>(null);
+  const [loading,       setLoading]       = useState(true); // true until localStorage is read
+  const [activeProject, setActiveProject] = useState<ActiveProject | null>(null);
 
   // Rehydrate from localStorage on mount (client-side only)
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem(TOKEN_KEY);
       const storedUser  = localStorage.getItem(USER_KEY);
+      let parsedUser: AuthUser | null = null;
       if (storedToken && storedUser) {
+        parsedUser = JSON.parse(storedUser) as AuthUser;
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        setUser(parsedUser);
+      }
+      const storedProject = localStorage.getItem(PROJECT_KEY);
+      if (storedProject) {
+        const parsed = JSON.parse(storedProject);
+        const storedUserId = localStorage.getItem("qavibe_project_user");
+        if (storedUserId && storedUserId === parsedUser?.id) {
+          setActiveProject(parsed);
+        } else {
+          localStorage.removeItem(PROJECT_KEY);
+          localStorage.removeItem("qavibe_project_user");
+        }
       }
     } catch {
       // Corrupted storage — clear it
@@ -55,6 +79,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, []);
+
+  function handleSetActiveProject(project: ActiveProject | null) {
+    if (project) {
+      localStorage.setItem(PROJECT_KEY, JSON.stringify(project));
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          localStorage.setItem("qavibe_project_user", payload.sub);
+        } catch { /* ignore */ }
+      }
+    } else {
+      localStorage.removeItem(PROJECT_KEY);
+      localStorage.removeItem("qavibe_project_user");
+    }
+    setActiveProject(project);
+  }
 
   const persist = useCallback((t: string, u: AuthUser) => {
     localStorage.setItem(TOKEN_KEY, t);
@@ -95,12 +136,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(PROJECT_KEY);
+    localStorage.removeItem("qavibe_project_user");
     setToken(null);
     setUser(null);
+    setActiveProject(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, activeProject, setActiveProject: handleSetActiveProject, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

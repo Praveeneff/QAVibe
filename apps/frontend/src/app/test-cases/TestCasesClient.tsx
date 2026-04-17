@@ -12,6 +12,7 @@ import {
   assignCase,
   removeFromSuite,
   getUser,
+  getActiveProjectId,
   type TestCase,
   type TestSuite,
   type TestCaseFilters,
@@ -654,11 +655,13 @@ export default function TestCasesClient() {
   useEffect(() => {
     setLoading(true);
     setLoadError("");
+    const projectId = getActiveProjectId();
     const filters: TestCaseFilters = {
       ...(selectedId !== null ? { suiteId: selectedId } : {}),
       ...activeFilters,
       page,
       limit,
+      ...(projectId ? { projectId } : {}),
     };
     getTestCases(filters)
       .then((result) => {
@@ -784,6 +787,7 @@ export default function TestCasesClient() {
         form.browser || undefined,
         form.buildVersion || undefined,
         form.device || undefined,
+        getActiveProjectId() ?? undefined,
       );
       router.push(`/runs/${run.id}`);
     } catch (err) {

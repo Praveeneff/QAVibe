@@ -46,15 +46,17 @@ export class TestCaseController {
 
   @Get()
   findAll(
-    @Query("suiteId")   suiteId?: string,
-    @Query("search")    search?: string,
-    @Query("category")  category?: string,
-    @Query("severity")  severity?: string,
-    @Query("priority")  priority?: string,
-    @Query("status")    status?: string,
-    @Query("page")      page?: string,
-    @Query("limit")     limit?: string,
-    @Query("fields")    fields?: string,
+    @Query("suiteId")    suiteId?: string,
+    @Query("search")     search?: string,
+    @Query("category")   category?: string,
+    @Query("severity")   severity?: string,
+    @Query("priority")   priority?: string,
+    @Query("status")     status?: string,
+    @Query("page")       page?: string,
+    @Query("limit")      limit?: string,
+    @Query("fields")     fields?: string,
+    @Query("projectId")  projectId?: string,
+    @Query("assignedTo") assignedTo?: string,
   ) {
     return this.testCaseService.findAll({
       suiteId,
@@ -66,7 +68,18 @@ export class TestCaseController {
       page:   page  ? parseInt(page,  10) : undefined,
       limit:  limit ? parseInt(limit, 10) : undefined,
       fields,
+      projectId,
+      assignedTo,
     });
+  }
+
+  @Patch(":id/assign")
+  @UseGuards(JwtAuthGuard)
+  assignTestCase(
+    @Param("id") id: string,
+    @Body("assignedTo") assignedTo: string | null,
+  ) {
+    return this.testCaseService.assignTestCase(id, assignedTo ?? null);
   }
 
   // Must be before @Get(":id") so Express doesn't match "export" as an id

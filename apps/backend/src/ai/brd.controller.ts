@@ -19,8 +19,9 @@ import { PrismaService } from "../prisma/prisma.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { TestCaseService } from "../test-case/test-case.service";
 
-const MAX_CASES = 50;
 const DEFAULT_CASES = 20;
+const MAX_CASES = 200;   // raised from 50
+const CHUNK_SIZE = 10;   // max cases per single AI call
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function buildBrdSystemPrompt(ctx: GenerationContext, maxCases: number): string {
@@ -54,6 +55,14 @@ export class BrdController {
     private readonly testCaseService: TestCaseService,
   ) {}
 
+  private chunkArray<T>(arr: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+      chunks.push(arr.slice(i, i + size));
+    }
+    return chunks;
+  }
+
   @Post("generate-from-brd")
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
@@ -68,6 +77,7 @@ export class BrdController {
     @Body("suiteId")     suiteId?: string,
     @Body("maxCases")    maxCasesRaw?: string,
     @Body("useModules")  useModulesRaw?: string,
+    @Body("projectId")   projectId?: string,
     @Request()           req?: any,
   ) {
     if (!file) {
@@ -94,6 +104,7 @@ export class BrdController {
       const cases = await this.aiService.generateTestCasesWithPrompt(
         `Here is the BRD:\n\n${documentText}`,
         systemPrompt,
+        createdBy ?? undefined,
       );
       const latencyMs = Date.now() - t0;
 
@@ -119,6 +130,7 @@ export class BrdController {
           automationId:   null,
           status:         "active",
           suite:          normalizedSuiteId ? { connect: { id: normalizedSuiteId } } : undefined,
+          ...(projectId ? { project: { connect: { id: projectId } } } : {}),
         }, createdBy ?? undefined);
         created.push(saved);
       }
@@ -137,6 +149,7 @@ export class BrdController {
     const moduleResult = await this.aiService.generateTestCasesWithPrompt(
       `Here is the BRD document:\n\n${documentText}`,
       extractionPrompt,
+      createdBy ?? undefined,
     );
 
     // Parser returns the array in .cases when AI returns a bare JSON array
@@ -158,37 +171,68 @@ export class BrdController {
 
     console.log(`[BRD] Found ${modules.length} modules:`, modules.map((m) => m.name));
 
-    const casesPerModule = Math.max(3, Math.floor(maxCases / modules.length));
-
     const allCreated: any[] = [];
     const moduleResults: { module: string; suiteId: string; count: number }[] = [];
+    const brdT0 = Date.now();
 
-    for (const mod of modules) {
-      try {
-        console.log(`[BRD] Generating ${casesPerModule} cases for module: ${mod.name}`);
-
+    const allResults = await Promise.allSettled(
+      modules.map(async (mod) => {
+        // 1. Create suite for this module
         const moduleSuite = await this.prisma.testSuite.create({
           data: {
             name:        mod.name,
             description: mod.description,
             parentId:    normalizedSuiteId,
             depth:       normalizedSuiteId ? 1 : 0,
+            ...(projectId ? { projectId } : {}),
           },
         });
 
-        const modulePrompt = this.generationContext.buildModuleTestCasePrompt(
-          mod.name,
-          mod.description,
-          casesPerModule,
+        // 2. Calculate cases for this module and split into chunks
+        const casesForModule = Math.max(3, Math.floor(maxCases / modules.length));
+        const numChunks = Math.ceil(casesForModule / CHUNK_SIZE);
+        const chunkSizes = Array.from({ length: numChunks }, (_, i) =>
+          i < numChunks - 1 ? CHUNK_SIZE : casesForModule - CHUNK_SIZE * (numChunks - 1),
         );
 
-        const cases = await this.aiService.generateTestCasesWithPrompt(
-          `Here is the BRD document:\n\n${documentText}\n\nFocus on the "${mod.name}" module. Keywords: ${mod.keywords?.join(", ")}`,
-          modulePrompt,
-        );
+        console.log(`[BRD] Module "${mod.name}": ${casesForModule} cases across ${numChunks} chunk(s)`);
 
+        // 3. Run chunks sequentially within each module to avoid rate limits
+        // (modules themselves still run in parallel via the outer allSettled)
+        const chunkResults: PromiseSettledResult<{ cases: any[]; tokens?: number }>[] = [];
+        for (const chunkCount of chunkSizes) {
+          try {
+            const chunkPrompt = this.generationContext.buildModuleTestCasePrompt(
+              mod.name,
+              mod.description,
+              chunkCount,
+            );
+            const result = await this.aiService.generateTestCasesWithPrompt(
+              `Here is the BRD document:\n\n${documentText}\n\nFocus on the "${mod.name}" module. Keywords: ${mod.keywords?.join(", ")}`,
+              chunkPrompt,
+              createdBy ?? undefined,
+            );
+            chunkResults.push({ status: "fulfilled", value: result });
+          } catch (err) {
+            chunkResults.push({ status: "rejected", reason: err });
+          }
+        }
+
+        // 4. Merge chunk results
+        let moduleTokens = 0;
+        const moduleCases: any[] = [];
+        for (const chunkResult of chunkResults) {
+          if (chunkResult.status === "fulfilled") {
+            moduleCases.push(...chunkResult.value.cases);
+            moduleTokens += (chunkResult.value.tokens ?? 0);
+          } else {
+            console.error(`[BRD] Chunk failed for module ${mod.name}:`, chunkResult.reason);
+          }
+        }
+
+        // 5. Save test cases sequentially (preserves tcId ordering)
         const created: any[] = [];
-        for (const tc of cases.cases) {
+        for (const tc of moduleCases) {
           const saved = await this.testCaseService.create({
             title:          String(tc.title ?? "Untitled").slice(0, 255),
             description:    tc.description ? String(tc.description) : null,
@@ -207,6 +251,7 @@ export class BrdController {
             automationId:   null,
             status:         "active",
             suite:          { connect: { id: moduleSuite.id } },
+            ...(projectId ? { project: { connect: { id: projectId } } } : {}),
           }, createdBy ?? undefined);
           created.push(saved);
         }
@@ -214,14 +259,22 @@ export class BrdController {
         allCreated.push(...created);
         moduleResults.push({ module: mod.name, suiteId: moduleSuite.id, count: created.length });
 
-      } catch (err) {
-        console.error(`[BRD] Failed to generate cases for module ${mod.name}:`, err);
-        // Continue with next module
+        return { tokens: moduleTokens, count: created.length };
+      }),
+    );
+
+    // Aggregate tokens and log any module-level failures
+    const totalTokens = allResults.reduce((sum, r) =>
+      r.status === "fulfilled" ? sum + (r.value?.tokens ?? 0) : sum, 0,
+    );
+    allResults.forEach((result, i) => {
+      if (result.status === "rejected") {
+        console.error(`[BRD] Module "${modules[i]?.name}" failed:`, result.reason);
       }
-    }
+    });
 
     this.prisma.aiGenerationLog.create({
-      data: { provider: "brd-upload-modules", latencyMs: 0, caseCount: allCreated.length, promptTokens: null, fallbackFrom: null },
+      data: { provider: "brd-upload-modules", latencyMs: Date.now() - brdT0, caseCount: allCreated.length, promptTokens: totalTokens || null, fallbackFrom: null },
     }).catch((err) => console.error("[BRD] Failed to write generation log:", err));
 
     return {

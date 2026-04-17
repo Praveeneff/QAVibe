@@ -82,6 +82,7 @@ export interface TestCasePayload {
   automationId?: string;
   status?: string;
   suiteId?: string | null;
+  assignedTo?: string | null;
 }
 
 export interface TestCasePage {
@@ -101,6 +102,8 @@ export interface TestCaseFilters {
   page?: number;
   limit?: number;
   fields?: string;
+  projectId?: string;
+  assignedTo?: string;
 }
 
 export const getTestCases = (filters: TestCaseFilters = {}) => {
@@ -201,10 +204,11 @@ export const createTestRun = (
   browser?: string,
   buildVersion?: string,
   device?: string,
+  projectId?: string,
 ) =>
   request<TestRun>("/test-runs", {
     method: "POST",
-    body: JSON.stringify({ name, testCaseIds, environment, browser, buildVersion, device }),
+    body: JSON.stringify({ name, testCaseIds, environment, browser, buildVersion, device, ...(projectId ? { projectId } : {}) }),
   });
 
 export const getTestRun = (id: string) =>
@@ -252,7 +256,8 @@ export interface RunSummary {
   sourceRunName?: string | null;
 }
 
-export const getAllRuns = () => request<RunSummary[]>("/test-runs");
+export const getAllRuns = (projectId?: string) =>
+  request<RunSummary[]>(projectId ? `/test-runs?projectId=${encodeURIComponent(projectId)}` : "/test-runs");
 
 export interface RunStats {
   totalRuns: number;
@@ -363,4 +368,23 @@ export async function getUser(id: string): Promise<UserProfile> {
     // Never let a user lookup break a page
     return { id, name: "Unknown", email: "", role: "" };
   }
+}
+
+export function getActiveProjectId(): string | null {
+  try {
+    const stored = localStorage.getItem("activeProject");
+    return stored ? JSON.parse(stored).id : null;
+  } catch { return null; }
+}
+
+export async function getProjectMembers(
+  projectId: string,
+  token: string,
+): Promise<{ userId: string; role: string; user: { id: string; email: string; name?: string } }[]> {
+  const res = await fetch(
+    `${BASE_URL}/projects/${projectId}/members`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return [];
+  return res.json();
 }

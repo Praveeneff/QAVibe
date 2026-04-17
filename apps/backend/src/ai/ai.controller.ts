@@ -53,12 +53,14 @@ export class AiController {
       model?: string;
       apiKey?: string;
     },
+    @Request() req: any,
   ) {
+    const userId = req?.user?.id ?? undefined;
     console.log("AI endpoint hit, provider:", body.provider ?? "default");
     return this.aiService.generateTestCases(body.input, {
       provider: body.provider,
       model: body.model,
       apiKey: body.apiKey,
-    });
+    }, userId);
   }
 }

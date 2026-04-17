@@ -5,7 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export class TestSuitesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createSuite(name: string, description?: string, parentId?: string) {
+  async createSuite(name: string, description?: string, parentId?: string, projectId?: string) {
     // Enforce max depth of 2 (3 levels: 0, 1, 2)
     let depth = 0;
     if (parentId) {
@@ -20,13 +20,13 @@ export class TestSuitesService {
       depth = parent.depth + 1;
     }
     return this.prisma.testSuite.create({
-      data: { name, description, parentId, depth },
+      data: { name, description, parentId, depth, ...(projectId ? { projectId } : {}) },
     });
   }
 
-  getAllSuites() {
+  getAllSuites(projectId?: string) {
     return this.prisma.testSuite.findMany({
-      where: { parentId: null }, // top-level only
+      where: { parentId: null, ...(projectId ? { projectId } : {}) }, // top-level only
       orderBy: { name: "asc" },
       select: {
         id: true,

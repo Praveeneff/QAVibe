@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { getAllRuns, type RunSummary } from "@/lib/api";
+import { getAllRuns, getActiveProjectId, type RunSummary } from "@/lib/api";
 import EnvFilter from "@/components/EnvFilter";
 import RunsClient from "./RunsClient";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -14,7 +14,7 @@ export default function RunsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const result = await getAllRuns();
+        const result = await getAllRuns(getActiveProjectId() ?? undefined);
         setAllRuns(result);
       } catch (err: unknown) {
         setFetchError("Could not reach backend. Make sure it is running on port 3001.");

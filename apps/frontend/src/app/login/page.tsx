@@ -20,7 +20,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      router.push("/");
+      const stored = localStorage.getItem("activeProject");
+      router.push(stored ? "/dashboard" : "/projects");
     } catch (err: any) {
       setError(err?.message ?? "Login failed");
     } finally {

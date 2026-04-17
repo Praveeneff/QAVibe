@@ -19,8 +19,9 @@ function computePassRate(counts: Record<string, number>, total: number): number 
 export class TestRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAllRuns() {
+  async getAllRuns(projectId?: string) {
     const runs = await this.prisma.testRun.findMany({
+      where: projectId ? { projectId } : undefined,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -169,6 +170,7 @@ export class TestRunsService {
     browser?: string,
     buildVersion?: string,
     device?: string,
+    projectId?: string,
   ) {
     return this.prisma.testRun.create({
       data: {
@@ -178,6 +180,7 @@ export class TestRunsService {
         browser: browser || null,
         buildVersion: buildVersion || null,
         device: device || null,
+        ...(projectId ? { projectId } : {}),
         results: {
           create: testCaseIds.map((testCaseId) => ({
             testCaseId,
@@ -277,6 +280,13 @@ export class TestRunsService {
     }
 
     return `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`;
+  }
+
+  async assignRun(id: string, assignedTo: string | null) {
+    return this.prisma.testRun.update({
+      where: { id },
+      data: { assignedTo },
+    });
   }
 
   async createRerun(sourceRunId: string, userId?: string) {

@@ -15,4 +15,8 @@ export class CreateSuiteDto {
   @IsString()
   @IsUUID()
   parentId?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 }

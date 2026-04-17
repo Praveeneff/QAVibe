@@ -39,4 +39,8 @@ export class CreateRunDto {
   @IsString()
   @MaxLength(100)
   device?: string;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 }

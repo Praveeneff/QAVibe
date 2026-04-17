@@ -41,6 +41,12 @@ export class AuthController {
     return req.user; // set by JwtStrategy.validate()
   }
 
+  @Get("me/usage")
+  @UseGuards(JwtAuthGuard)
+  getMyUsage(@Request() req: any) {
+    return this.authService.getMyUsage(req.user.id ?? req.user.sub);
+  }
+
   @Get("users/:id")
   @UseGuards(JwtAuthGuard)
   async getUser(@Param("id") id: string) {

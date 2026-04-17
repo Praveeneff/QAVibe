@@ -75,11 +75,12 @@ export class CodebaseController {
   )
   async generateFromCodebase(
     @UploadedFile() file: Express.Multer.File | undefined,
-    @Body("repoUrl")  repoUrl?: string,
-    @Body("suiteId")  suiteId?: string,
-    @Body("maxCases") maxCasesRaw?: string,
-    @Body("focus")    focus?: string,
-    @Request()        req?: any,
+    @Body("repoUrl")   repoUrl?: string,
+    @Body("suiteId")   suiteId?: string,
+    @Body("maxCases")  maxCasesRaw?: string,
+    @Body("focus")     focus?: string,
+    @Body("projectId") projectId?: string,
+    @Request()         req?: any,
   ) {
     // ── Validation ────────────────────────────────────────────────────────────
     const hasFile    = !!file;
@@ -138,10 +139,14 @@ export class CodebaseController {
     const systemPrompt = buildCodebaseSystemPrompt(ctx, maxCases, focusArea);
 
     // ── 3. Generate via AI fallback chain ─────────────────────────────────────
+    const normalizedSuiteId = suiteId?.trim() || null;
+    const createdBy: string | null = req?.user?.id ?? null;
+
     const t0 = Date.now();
     const result = await this.aiService.generateTestCasesWithPrompt(
       `Here is the source code to analyze:\n\n${codeContent}`,
       systemPrompt,
+      createdBy ?? undefined,
     );
     const latencyMs = Date.now() - t0;
 
@@ -150,8 +155,6 @@ export class CodebaseController {
     );
 
     // ── 4. Persist test cases ─────────────────────────────────────────────────
-    const normalizedSuiteId = suiteId?.trim() || null;
-    const createdBy: string | null = req?.user?.id ?? null;
 
     const created = await Promise.all(
       result.cases.map((tc: any) =>
@@ -168,6 +171,7 @@ export class CodebaseController {
           severity:       String(tc.severity ?? "medium"),
           status:         "active",
           suite:          normalizedSuiteId ? { connect: { id: normalizedSuiteId } } : undefined,
+          ...(projectId ? { project: { connect: { id: projectId } } } : {}),
         }, createdBy ?? undefined),
       ),
     );

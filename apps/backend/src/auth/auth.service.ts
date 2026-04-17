@@ -73,6 +73,37 @@ export class AuthService {
     return stripHash(user);
   }
 
+  // ── My Usage ──────────────────────────────────────────────────────────────
+
+  async getMyUsage(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tokenUsed: true,
+        tokenResetAt: true,
+        tokenLimits: {
+          where: { projectId: null },
+          select: { limitTokens: true },
+        },
+      },
+    });
+
+    if (!user) throw new Error("User not found");
+
+    const globalLimit = user.tokenLimits[0]?.limitTokens ?? 50000;
+    const percentUsed = Math.round((user.tokenUsed / globalLimit) * 100);
+
+    return {
+      tokenUsed: user.tokenUsed,
+      tokenResetAt: user.tokenResetAt,
+      globalLimit,
+      percentUsed,
+    };
+  }
+
   // ── Private ────────────────────────────────────────────────────────────────
 
   private sign(user: { id: string; email: string; role: string }): string {

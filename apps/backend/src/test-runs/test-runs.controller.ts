@@ -13,8 +13,8 @@ export class TestRunsController {
   // ── Static routes first (must precede :id to avoid param capture) ──────────
 
   @Get()
-  getAllRuns() {
-    return this.testRunsService.getAllRuns();
+  getAllRuns(@Query("projectId") projectId?: string) {
+    return this.testRunsService.getAllRuns(projectId);
   }
 
   @Get("stats")
@@ -37,6 +37,7 @@ export class TestRunsController {
       body.browser,
       body.buildVersion,
       body.device,
+      body.projectId,
     );
   }
 
@@ -59,6 +60,15 @@ export class TestRunsController {
       body.notes,
       body.screenshotUrl,
     );
+  }
+
+  @Patch(":id/assign")
+  @UseGuards(JwtAuthGuard)
+  assignRun(
+    @Param("id") id: string,
+    @Body("assignedTo") assignedTo: string | null,
+  ) {
+    return this.testRunsService.assignRun(id, assignedTo ?? null);
   }
 
   @Patch(":id/complete")
