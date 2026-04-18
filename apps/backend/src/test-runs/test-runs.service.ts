@@ -36,8 +36,11 @@ export class TestRunsService {
         buildVersion: true,
         device: true,
         createdBy: true,
+        assignedTo: true,
         sourceRunId: true,
         results: { select: { status: true } },
+        assignee: { select: { id: true, name: true, email: true } },
+        creator:  { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -68,32 +71,39 @@ export class TestRunsService {
     });
   }
 
-  async getRunStats(environment?: string) {
-    const envFilter = environment ? { environment } : {};
+  async getRunStats(environment?: string, projectId?: string) {
+    const runFilter = {
+      status: "done",
+      ...(environment && { environment }),
+      ...(projectId   && { projectId }),
+    };
+    const resultFilter = {
+      ...(environment && { testRun: { environment } }),
+      ...(projectId   && { testRun: { projectId } }),
+    };
+
     const [totalRuns, totalCasesExecuted, doneRuns, flakyGroups] = await Promise.all([
-      // Count of completed runs (scoped to env if provided)
-      this.prisma.testRun.count({ where: { status: "done", ...envFilter } }),
+      // Count of completed runs (scoped to env/project if provided)
+      this.prisma.testRun.count({ where: runFilter }),
 
       // Total result rows for matching runs
       this.prisma.testResult.count({
-        where: environment
-          ? { testRun: { environment } }
-          : undefined,
+        where: Object.keys(resultFilter).length ? resultFilter : undefined,
       }),
 
       // All done runs with their result statuses for avgPassRate
       this.prisma.testRun.findMany({
-        where: { status: "done", ...envFilter },
+        where: runFilter,
         select: { results: { select: { status: true } } },
       }),
 
-      // GroupBy testCaseId + status to find flaky tests (scoped to env)
+      // GroupBy testCaseId + status to find flaky tests (scoped to env/project)
       this.prisma.testResult.groupBy({
         by: ["testCaseId", "status"],
         _count: { status: true },
         where: {
           status: { in: ["pass", "fail"] },
-          ...(environment ? { testRun: { environment } } : {}),
+          ...resultFilter,
         },
       }),
     ]);
@@ -145,9 +155,13 @@ export class TestRunsService {
     return { totalRuns, avgPassRate, totalCasesExecuted, flakyTests };
   }
 
-  async getPassRateTrend(environment?: string) {
+  async getPassRateTrend(environment?: string, projectId?: string) {
     const runs = await this.prisma.testRun.findMany({
-      where: { status: "done", ...(environment ? { environment } : {}) },
+      where: {
+        status: "done",
+        ...(environment && { environment }),
+        ...(projectId   && { projectId }),
+      },
       orderBy: { createdAt: "asc" },
       take: 10,
       select: {

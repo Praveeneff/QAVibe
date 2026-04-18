@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import * as path from "path";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
@@ -14,8 +16,6 @@ import { ProjectsModule } from "./projects/projects.module";
 import { AdminModule } from "./admin/admin.module";
 
 const envPath = path.resolve(process.cwd(), ".env");
-console.log("Loading .env from:", envPath);
-console.log("ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSING");
 
 @Module({
   imports: [
@@ -23,6 +23,7 @@ console.log("ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSI
       isGlobal: true,
       envFilePath: envPath,
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     TestCaseModule,
     TestRunsModule,
@@ -34,6 +35,9 @@ console.log("ANTHROPIC_API_KEY:", process.env.ANTHROPIC_API_KEY ? "SET" : "MISSI
     AdminModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

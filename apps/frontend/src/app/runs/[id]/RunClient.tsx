@@ -102,7 +102,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleStatusChange(resultId: string, status: string) {
-    const updated = await updateTestResult(run.id, resultId, status);
+    const updated = await updateTestResult(run.id, resultId, status, undefined, getStoredToken() ?? "");
     setRun((prev) => ({
       ...prev,
       results: prev.results.map((r) => (r.id === resultId ? { ...r, status: updated.status } : r)),
@@ -112,7 +112,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
 
   async function handleNotesChange(resultId: string, notes: string) {
     const current = run.results.find((r) => r.id === resultId);
-    const updated = await updateTestResult(run.id, resultId, current?.status ?? "pending", notes);
+    const updated = await updateTestResult(run.id, resultId, current?.status ?? "pending", notes, getStoredToken() ?? "");
     setRun((prev) => ({
       ...prev,
       results: prev.results.map((r) => (r.id === resultId ? { ...r, notes: updated.notes } : r)),

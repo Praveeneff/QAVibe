@@ -135,7 +135,7 @@ export class CodebaseController {
     );
 
     // ── 2. Build generation context + system prompt ───────────────────────────
-    const ctx = await this.generationContext.buildGenerationContext();
+    const ctx = await this.generationContext.buildGenerationContext(projectId);
     const systemPrompt = buildCodebaseSystemPrompt(ctx, maxCases, focusArea);
 
     // ── 3. Generate via AI fallback chain ─────────────────────────────────────

@@ -97,7 +97,7 @@ export class BrdController {
 
     // ── Single-pass fallback ──────────────────────────────────────────────────
     if (!useModules) {
-      const ctx = await this.generationContext.buildGenerationContext();
+      const ctx = await this.generationContext.buildGenerationContext(projectId);
       const systemPrompt = buildBrdSystemPrompt(ctx, maxCases);
 
       const t0 = Date.now();

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
-import { getActiveProjectId } from "@/lib/api";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MembersTab from "./MembersTab";
 import TokenLimitsTab from "./TokenLimitsTab";
@@ -74,7 +73,7 @@ function SettingsContent() {
           {activeTab === "members"      && <MembersTab     projectId={projectId} />}
           {activeTab === "token-limits" && <TokenLimitsTab projectId={projectId} />}
           {activeTab === "token-usage"  && <TokenUsageTab  projectId={projectId} />}
-          {activeTab === "permissions"  && <PermissionsTab />}
+          {activeTab === "permissions"  && <PermissionsTab projectId={projectId} />}
         </div>
 
       </div>
@@ -92,21 +91,34 @@ export default function ProjectSettingsPage() {
 
 // ── Permissions Tab ───────────────────────────────────────────────────────────
 
-function PermissionsTab() {
+function PermissionsTab({ projectId }: { projectId: string }) {
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const token = getStoredToken();
-  const projectId = getActiveProjectId();
 
   useEffect(() => {
     if (!projectId || !token) return;
+
+    setLoading(true);
+    setError(null);
+
     fetch(`${BASE_URL}/admin/projects/${projectId}/permissions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load permissions (${res.status})`);
+        }
+        return res.json();
+      })
       .then(setPermissions)
+      .catch((e) => {
+        setError(e.message);
+        setPermissions([]);
+      })
       .finally(() => setLoading(false));
   }, [projectId, token]);
 
@@ -142,6 +154,21 @@ function PermissionsTab() {
     } finally {
       setSaving(null);
     }
+  }
+
+  if (error) {
+    return (
+      <div style={{
+        background: "#2d1414",
+        border: "1px solid #5c2020",
+        borderRadius: 6,
+        padding: "12px 16px",
+        color: "#f87171",
+        fontSize: 13,
+      }}>
+        {error}
+      </div>
+    );
   }
 
   if (loading) {

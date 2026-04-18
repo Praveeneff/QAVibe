@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
@@ -84,6 +85,14 @@ export class ProjectsController {
   ) {
     if (!userId?.trim()) throw new BadRequestException("userId is required");
     return this.projectsService.addMember(projectId, req.user.id, userId.trim(), role);
+  }
+
+  // GET /projects/:id/my-permissions
+  @Get(":id/my-permissions")
+  async getMyPermissions(@Param("id") projectId: string, @Request() req: any) {
+    const member = await this.projectsService.findMember(projectId, req.user.id);
+    if (!member) throw new ForbiddenException("You are not a member of this project");
+    return this.projectsService.getProjectPermissions(projectId, "tester");
   }
 
   // DELETE /projects/:id/members/:userId

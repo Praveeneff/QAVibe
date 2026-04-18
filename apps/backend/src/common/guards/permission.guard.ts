@@ -6,6 +6,7 @@ import {
   SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
+import { PermissionAction, PermissionResource } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export const PERMISSION_KEY = "permission";
@@ -63,8 +64,8 @@ export class PermissionGuard implements CanActivate {
       where: {
         projectId,
         role: user.role,
-        resource: requirement.resource,
-        action: requirement.action,
+        resource: requirement.resource as PermissionResource,
+        action: requirement.action as PermissionAction,
       },
     });
 

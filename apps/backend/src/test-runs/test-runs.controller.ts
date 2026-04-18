@@ -3,6 +3,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { memoryStorage } from "multer";
 import { TestRunsService } from "./test-runs.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { PermissionGuard, RequirePermission } from "../common/guards/permission.guard";
 import { CreateRunDto } from "./dto/create-run.dto";
 import { UpdateResultDto } from "./dto/update-result.dto";
 
@@ -21,17 +22,24 @@ export class TestRunsController {
   }
 
   @Get("stats")
-  getRunStats(@Query("environment") environment?: string) {
-    return this.testRunsService.getRunStats(environment);
+  getRunStats(
+    @Query("environment") environment?: string,
+    @Query("projectId")   projectId?: string,
+  ) {
+    return this.testRunsService.getRunStats(environment, projectId);
   }
 
   @Get("trend")
-  getPassRateTrend(@Query("environment") environment?: string) {
-    return this.testRunsService.getPassRateTrend(environment);
+  getPassRateTrend(
+    @Query("environment") environment?: string,
+    @Query("projectId")   projectId?: string,
+  ) {
+    return this.testRunsService.getPassRateTrend(environment, projectId);
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_run", "create")
   createRun(@Body() body: CreateRunDto) {
     return this.testRunsService.createRun(
       body.name,
@@ -52,7 +60,8 @@ export class TestRunsController {
   }
 
   @Patch(":id/results/:resultId")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_run", "execute")
   updateResult(
     @Param("resultId") resultId: string,
     @Body() body: UpdateResultDto,
@@ -66,7 +75,8 @@ export class TestRunsController {
   }
 
   @Patch(":id/assign")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_run", "assign_self")
   assignRun(
     @Param("id") id: string,
     @Body("assignedTo") assignedTo: string | null,
@@ -75,7 +85,8 @@ export class TestRunsController {
   }
 
   @Patch(":id/complete")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_run", "execute")
   completeRun(@Param("id") id: string) {
     return this.testRunsService.completeRun(id);
   }

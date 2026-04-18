@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { getRunStats, getRunTrend, getAllRuns, type RunStats, type TrendPoint } from "@/lib/api";
+import { getRunStats, getRunTrend, getAllRuns, getActiveProjectId, type RunStats, type TrendPoint } from "@/lib/api";
 import EnvFilter from "@/components/EnvFilter";
 import RerunNeededClient from "./RerunNeededClient";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -167,10 +167,11 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
+        const projectId = getActiveProjectId() ?? undefined;
         const [statsResult, trendResult, allRuns] = await Promise.all([
-          getRunStats(),
-          getRunTrend(),
-          getAllRuns(),
+          getRunStats(undefined, projectId),
+          getRunTrend(undefined, projectId),
+          getAllRuns(projectId),
         ]);
         setStats(statsResult);
         setTrend(trendResult);

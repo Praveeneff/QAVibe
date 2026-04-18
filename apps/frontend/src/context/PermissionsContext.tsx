@@ -4,7 +4,6 @@ import React, {
   createContext, useContext, useState, useEffect
 } from "react";
 import { useAuth, getStoredToken } from "./AuthContext";
-import { getActiveProjectId } from "@/lib/api";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -31,7 +30,7 @@ export function PermissionsProvider({
 }: {
   children: React.ReactNode
 }) {
-  const { user } = useAuth();
+  const { user, activeProject } = useAuth();
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,7 +43,7 @@ export function PermissionsProvider({
     }
 
     // Fetch tester permissions for active project
-    const projectId = getActiveProjectId();
+    const projectId = activeProject?.id;
     const token = getStoredToken();
 
     if (!projectId || !token) {
@@ -54,14 +53,14 @@ export function PermissionsProvider({
     }
 
     setLoading(true);
-    fetch(`${BASE_URL}/admin/projects/${projectId}/permissions`, {
+    fetch(`${BASE_URL}/projects/${projectId}/my-permissions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setPermissions(data))
+      .then((data) => { setPermissions(data); })
       .catch(() => setPermissions([]))
       .finally(() => setLoading(false));
-  }, [user?.role]);
+  }, [user?.role, activeProject?.id]);
 
   function can(action: string, resource: string): boolean {
     // Admin can do everything

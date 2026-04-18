@@ -76,20 +76,23 @@ Rules you must follow:
 6. Response shape: { "suggestedSuite": "${moduleName}", "cases": [ { "title": "string", "steps": ["Step 1 description", "Step 2 description", "Step 3 description"], "expectedResult": "string", "category": "smoke|sanity|regression|functional|e2e|integration|performance|security|ui|api", "executionType": "manual|automated|api|exploratory", "priority": "P1|P2|P3|P4", "severity": "critical|high|medium|low" }, ... ] }`;
   }
 
-  async buildGenerationContext(): Promise<GenerationContext> {
+  async buildGenerationContext(projectId?: string): Promise<GenerationContext> {
     const [tagGroups, priorityGroups, recentCases] = await Promise.all([
       this.prisma.testCase.groupBy({
         by: ["category"],
         _count: { category: true },
+        where: projectId ? { projectId } : undefined,
       }),
       this.prisma.testCase.groupBy({
         by: ["priority"],
         _count: { priority: true },
+        where: projectId ? { projectId } : undefined,
       }),
       this.prisma.testCase.findMany({
         orderBy: { createdAt: "desc" },
         take: 10,
         select: { title: true },
+        where: projectId ? { projectId } : undefined,
       }),
     ]);
 

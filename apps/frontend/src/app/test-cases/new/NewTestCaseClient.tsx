@@ -220,6 +220,7 @@ export default function NewTestCaseClient({ initialSuiteId }: Props) {
   function useThis(tc: GeneratedCase) {
     setFormInitial({
       id: "",
+      tcId: "",
       title: tc.title ?? "",
       description: tc.description ?? "",
       category: tc.tag,

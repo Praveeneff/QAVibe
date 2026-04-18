@@ -272,6 +272,8 @@ export interface RunSummary {
   device: string | null;
   createdBy?: string | null;
   assignedTo?: string | null;
+  assignee?: { id: string; name: string; email: string } | null;
+  creator?:  { id: string; name: string; email: string } | null;
   sourceRunId?: string | null;
   sourceRunName?: string | null;
 }
@@ -298,11 +300,21 @@ export interface TrendPoint {
   createdAt: string;
 }
 
-export const getRunStats = (environment?: string) =>
-  request<RunStats>(environment ? `/test-runs/stats?environment=${encodeURIComponent(environment)}` : "/test-runs/stats");
+export const getRunStats = (environment?: string, projectId?: string) => {
+  const params = new URLSearchParams();
+  if (environment) params.append("environment", environment);
+  if (projectId)   params.append("projectId",   projectId);
+  const qs = params.toString();
+  return request<RunStats>(qs ? `/test-runs/stats?${qs}` : "/test-runs/stats");
+};
 
-export const getRunTrend = (environment?: string) =>
-  request<TrendPoint[]>(environment ? `/test-runs/trend?environment=${encodeURIComponent(environment)}` : "/test-runs/trend");
+export const getRunTrend = (environment?: string, projectId?: string) => {
+  const params = new URLSearchParams();
+  if (environment) params.append("environment", environment);
+  if (projectId)   params.append("projectId",   projectId);
+  const qs = params.toString();
+  return request<TrendPoint[]>(qs ? `/test-runs/trend?${qs}` : "/test-runs/trend");
+};
 
 // ── AI Logs ───────────────────────────────────────────────────────────────────
 
@@ -369,10 +381,8 @@ export const getAiRecentLogs = () => request<AiRecentLog[]>("/ai-logs/recent");
 // ── User lookup ───────────────────────────────────────────────────────────────
 
 export interface UserProfile {
-  id:    string;
-  name:  string;
-  email: string;
-  role:  string;
+  id:   string;
+  name: string;
 }
 
 // In-memory cache — survives page navigation, cleared on tab close
@@ -386,7 +396,7 @@ export async function getUser(id: string): Promise<UserProfile> {
     return profile;
   } catch {
     // Never let a user lookup break a page
-    return { id, name: "Unknown", email: "", role: "" };
+    return { id, name: "Unknown" };
   }
 }
 

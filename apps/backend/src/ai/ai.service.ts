@@ -70,6 +70,7 @@ interface GenerateOpts {
   provider?: string;
   model?: string;
   apiKey?: string;
+  projectId?: string;
 }
 
 interface FallbackStep {
@@ -99,13 +100,13 @@ export class AiService {
   // ── Public entry points ──────────────────────────────────────────────────
 
   async generateTestCases(input: string, opts?: GenerateOpts, userId?: string): Promise<{ cases: any[]; suggestedSuite?: string }> {
-    const { provider, model, apiKey } = opts ?? {};
+    const { provider, model, apiKey, projectId } = opts ?? {};
 
     const primaryModel = model ?? ((!provider || provider === "gemini") ? "gemini-2.5-flash" : undefined);
     const primarySvc = (provider && this.registry[provider]) ?? this.gemini;
 
     // Build context-aware system prompt once — used by every step in the chain.
-    const ctx = await this.generationContext.buildGenerationContext();
+    const ctx = await this.generationContext.buildGenerationContext(projectId);
     const systemPrompt = buildSystemPrompt(ctx);
     console.log(`[AI] Context: ${ctx.totalCases} total cases, ${ctx.recentTitles.length} recent titles loaded`);
 

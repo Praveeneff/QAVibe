@@ -23,6 +23,7 @@ model User {
   projectMemberships ProjectMember[]
   assignedTestCases  TestCase[]       @relation("TestCaseAssignee")
   assignedTestRuns   TestRun[]        @relation("TestRunAssignee")
+  createdTestRuns    TestRun[]        @relation("TestRunCreator")
   tokenLimits        UserTokenLimit[]
   aiLogs             AiGenerationLog[]
 }
@@ -86,6 +87,7 @@ model TestRun {
   results      TestResult[]
   project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   assignee     User?        @relation("TestRunAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator      User?        @relation("TestRunCreator",  fields: [createdBy],  references: [id], onDelete: SetNull)
 }
 
 model TestResult {

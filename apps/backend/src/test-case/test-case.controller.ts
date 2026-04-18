@@ -22,6 +22,7 @@ import { Response } from "express";
 import { TestCaseService } from "./test-case.service";
 import { HistoryService } from "./history.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { PermissionGuard, RequirePermission } from "../common/guards/permission.guard";
 import { CreateTestCaseDto } from "./dto/create-test-case.dto";
 import { UpdateTestCaseDto } from "./dto/update-test-case.dto";
 
@@ -74,7 +75,8 @@ export class TestCaseController {
   }
 
   @Patch(":id/assign")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_case", "assign_self")
   assignTestCase(
     @Param("id") id: string,
     @Body("assignedTo") assignedTo: string | null,
@@ -153,13 +155,15 @@ export class TestCaseController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_case", "create")
   create(@Body() body: CreateTestCaseDto, @Request() req: any) {
     return this.testCaseService.create(body, req.user?.id);
   }
 
   @Patch(":id")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_case", "edit")
   update(
     @Param("id") id: string,
     @Body() body: UpdateTestCaseDto,
@@ -169,7 +173,8 @@ export class TestCaseController {
   }
 
   @Delete(":id")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("test_case", "delete")
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param("id") id: string) {
     return this.testCaseService.remove(id);

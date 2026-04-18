@@ -111,9 +111,9 @@ function RunRow({ run, canDelete }: { run: RunSummary; canDelete: boolean }) {
             Rerun of: {run.sourceRunName}
           </div>
         )}
-        {run.createdBy && (
+        {run.creator && (
           <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
-            Started by {run.createdBy}
+            Started by {run.creator.name}
           </div>
         )}
         {rowError && (

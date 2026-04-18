@@ -70,4 +70,8 @@ export class CreateTestCaseDto {
   @IsOptional()
   @IsString()
   suiteId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  projectId?: string;
 }

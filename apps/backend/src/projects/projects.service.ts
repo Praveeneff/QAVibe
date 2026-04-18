@@ -72,19 +72,16 @@ export class ProjectsService {
     });
 
     // Seed default permissions for this project
-    await Promise.all(
-      DEFAULT_PERMISSIONS.map((perm) =>
-        this.prisma.projectPermission.create({
-          data: {
-            projectId: project.id,
-            role: "tester",
-            resource: perm.resource as any,
-            action: perm.action as any,
-            allowed: perm.allowed,
-          },
-        })
-      )
-    );
+    await this.prisma.projectPermission.createMany({
+      data: DEFAULT_PERMISSIONS.map((perm) => ({
+        projectId: project.id,
+        role: "tester",
+        resource: perm.resource as any,
+        action: perm.action as any,
+        allowed: perm.allowed,
+      })),
+      skipDuplicates: true,
+    });
 
     return project;
   }
@@ -162,6 +159,21 @@ export class ProjectsService {
     if (!project) throw new NotFoundException("Project not found");
     this.assertMember(project, callerId);
     return project.members;
+  }
+
+  // ── Permission queries ────────────────────────────────────────────────────
+
+  async findMember(projectId: string, userId: string) {
+    return this.prisma.projectMember.findUnique({
+      where: { projectId_userId: { projectId, userId } },
+    });
+  }
+
+  async getProjectPermissions(projectId: string, role: string) {
+    return this.prisma.projectPermission.findMany({
+      where: { projectId, role },
+      orderBy: [{ resource: "asc" }, { action: "asc" }],
+    });
   }
 
   // ── Private guards ────────────────────────────────────────────────────────
