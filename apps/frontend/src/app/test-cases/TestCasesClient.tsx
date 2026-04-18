@@ -22,6 +22,7 @@ import {
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
+import { usePermission } from "@/context/PermissionsContext";
 
 // ── Severity badge ────────────────────────────────────────────────────────────
 
@@ -539,6 +540,7 @@ type ActiveFilters = Pick<TestCaseFilters, "search" | "category" | "severity" | 
 export default function TestCasesClient() {
   const { loading: authLoading, user } = useRequireAuth();
   const isAdmin = user?.role === "admin";
+  const { can } = usePermission();
   const token = getStoredToken() ?? "";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1160,7 +1162,7 @@ export default function TestCasesClient() {
             key={suite.id}
             suite={suite}
             activeId={selectedId}
-            isAdmin={isAdmin}
+            isAdmin={can("delete", "test_case")}
             depth={0}
             onSelect={(id) => selectSuite(id)}
             onRun={(id, name) => handleRunSuite(id, name)}
@@ -1214,16 +1216,18 @@ export default function TestCasesClient() {
             >
               {exporting ? "Exporting…" : "Export CSV"}
             </button>
-            <Link
-              href={
-                selectedId && selectedId !== "unassigned"
-                  ? `/test-cases/new?suiteId=${selectedId}`
-                  : "/test-cases/new"
-              }
-              style={linkBtnStyle}
-            >
-              + New
-            </Link>
+            {can("create", "test_case") && (
+              <Link
+                href={
+                  selectedId && selectedId !== "unassigned"
+                    ? `/test-cases/new?suiteId=${selectedId}`
+                    : "/test-cases/new"
+                }
+                style={linkBtnStyle}
+              >
+                + New
+              </Link>
+            )}
           </div>
         </div>
 
@@ -1252,7 +1256,7 @@ export default function TestCasesClient() {
               {assigning ? "Assigning…" : "Assign to Me"}
             </button>
 
-            {isAdmin && (
+            {can("assign_others", "test_case") && (
               <>
                 <div style={{ position: "relative" }}>
                   <button
@@ -1609,9 +1613,11 @@ export default function TestCasesClient() {
                     <td style={td}><LastRunCell results={tc.results} /></td>
                     <td style={td}>{new Date(tc.createdAt).toLocaleDateString()}</td>
                     <td style={td}>
-                      <Link href={`/test-cases/${tc.id}`} style={{ color: "#0070f3", textDecoration: "none" }}>
-                        Edit
-                      </Link>
+                      {can("edit", "test_case") && (
+                        <Link href={`/test-cases/${tc.id}`} style={{ color: "#0070f3", textDecoration: "none" }}>
+                          Edit
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 )),

@@ -271,6 +271,7 @@ export interface RunSummary {
   buildVersion: string | null;
   device: string | null;
   createdBy?: string | null;
+  assignedTo?: string | null;
   sourceRunId?: string | null;
   sourceRunName?: string | null;
 }

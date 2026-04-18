@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { RunSummary } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { usePermission } from "@/context/PermissionsContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,10 +58,11 @@ function EnvBadge({ env }: { env: string }) {
 
 // ── Row ───────────────────────────────────────────────────────────────────────
 
-function RunRow({ run }: { run: RunSummary }) {
+function RunRow({ run, canDelete }: { run: RunSummary; canDelete: boolean }) {
   const router = useRouter();
-  const [rerunning, setRerunning] = useState(false);
-  const [rowError,  setRowError]  = useState("");
+  const [rerunning,  setRerunning]  = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
+  const [rowError,   setRowError]   = useState("");
 
   const canRerun =
     run.status === "done" &&
@@ -80,6 +83,21 @@ function RunRow({ run }: { run: RunSummary }) {
     } catch (err: any) {
       setRowError(err?.message ?? "Failed to create rerun");
       setRerunning(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete run "${run.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    setRowError("");
+    try {
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+      const res = await fetch(`${BASE_URL}/test-runs/${run.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete run (${res.status})`);
+      router.refresh();
+    } catch (err: any) {
+      setRowError(err?.message ?? "Failed to delete run");
+      setDeleting(false);
     }
   }
 
@@ -165,6 +183,23 @@ function RunRow({ run }: { run: RunSummary }) {
           <Link href={`/runs/${run.id}`} style={{ color: "#0070f3", textDecoration: "none", fontSize: 14 }}>
             View
           </Link>
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{
+                background: "transparent",
+                border: "1px solid #5c2020",
+                color: deleting ? "#555" : "#f87171",
+                borderRadius: 4,
+                padding: "3px 10px",
+                fontSize: 12,
+                cursor: deleting ? "not-allowed" : "pointer",
+              }}
+            >
+              {deleting ? "…" : "Delete"}
+            </button>
+          )}
         </div>
       </td>
     </tr>
@@ -174,27 +209,61 @@ function RunRow({ run }: { run: RunSummary }) {
 // ── Table ─────────────────────────────────────────────────────────────────────
 
 export default function RunsClient({ runs }: { runs: RunSummary[] }) {
-  if (runs.length === 0) return null;
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const { can } = usePermission();
+  const router = useRouter();
+
+  const visibleRuns = useMemo(() => {
+    if (can("view_all", "test_run")) {
+      return runs; // Admin or tester with view_all
+    }
+    // Tester with view_own only
+    const userId = user?.id;
+    return runs.filter(run => run.assignedTo === userId);
+  }, [runs, can, user?.id]);
+
+  if (visibleRuns.length === 0) return null;
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-      <thead>
-        <tr style={{ borderBottom: "1px solid #333", textAlign: "left", color: "#aaa" }}>
-          <th style={th}>Run Name</th>
-          <th style={th}>Env</th>
-          <th style={th}>Status</th>
-          <th style={th}>Pass Rate</th>
-          <th style={th}>Results</th>
-          <th style={th}>When</th>
-          <th style={th}></th>
-        </tr>
-      </thead>
-      <tbody>
-        {runs.map((run) => (
-          <RunRow key={run.id} run={run} />
-        ))}
-      </tbody>
-    </table>
+    <>
+      {can("create", "test_run") && (
+        <div style={{ marginBottom: 16, textAlign: "right" }}>
+          <button
+            onClick={() => router.push("/test-cases")}
+            style={{
+              padding: "8px 16px",
+              background: "#0070f3",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            + New Run
+          </button>
+        </div>
+      )}
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #333", textAlign: "left", color: "#aaa" }}>
+            <th style={th}>Run Name</th>
+            <th style={th}>Env</th>
+            <th style={th}>Status</th>
+            <th style={th}>Pass Rate</th>
+            <th style={th}>Results</th>
+            <th style={th}>When</th>
+            <th style={th}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibleRuns.map((run) => (
+            <RunRow key={run.id} run={run} canDelete={can("delete", "test_run")} />
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 

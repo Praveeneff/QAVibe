@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
+import { usePermission } from "@/context/PermissionsContext";
 import { getActiveProjectId, updateTestResult } from "@/lib/api";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -126,6 +127,7 @@ export default function MyTasksPage() {
 
 function MyTasksContent() {
   const { user } = useAuth();
+  const { can } = usePermission();
   const router = useRouter();
   const token = getStoredToken() ?? "";
 
@@ -295,17 +297,19 @@ function MyTasksContent() {
                       </span>
                     </td>
                     <td style={{ ...styles.td, display: "flex", gap: 8 }}>
-                      <button
-                        onClick={() => handleExpandRun(run.id)}
-                        style={{
-                          ...styles.actionBtn,
-                          background: expandedRunId === run.id ? "#1e3a5f" : "transparent",
-                          color:      expandedRunId === run.id ? "#60a5fa" : "#eee",
-                          border:     expandedRunId === run.id ? "1px solid #2563eb44" : "1px solid #333",
-                        }}
-                      >
-                        {expandedRunId === run.id ? "Collapse" : "Execute"}
-                      </button>
+                      {can("execute", "test_run") && (
+                        <button
+                          onClick={() => handleExpandRun(run.id)}
+                          style={{
+                            ...styles.actionBtn,
+                            background: expandedRunId === run.id ? "#1e3a5f" : "transparent",
+                            color:      expandedRunId === run.id ? "#60a5fa" : "#eee",
+                            border:     expandedRunId === run.id ? "1px solid #2563eb44" : "1px solid #333",
+                          }}
+                        >
+                          {expandedRunId === run.id ? "Collapse" : "Execute"}
+                        </button>
+                      )}
                       <button
                         onClick={() => router.push(`/runs/${run.id}`)}
                         style={styles.actionBtn}
@@ -316,7 +320,7 @@ function MyTasksContent() {
                   </tr>
 
                   {/* Inline execution panel */}
-                  {expandedRunId === run.id && (
+                  {expandedRunId === run.id && can("execute", "test_run") && (
                     <tr key={`${run.id}-panel`}>
                       <td colSpan={6} style={{ padding: 0 }}>
                         <div style={{
