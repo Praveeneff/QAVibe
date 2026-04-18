@@ -124,4 +124,40 @@ export class AdminService {
       data: { tokenUsed: 0, tokenResetAt: new Date() },
     });
   }
+
+  // GET permissions for a project (or global if projectId null)
+  async getPermissions(projectId?: string) {
+    return this.prisma.projectPermission.findMany({
+      where: { projectId: projectId ?? null },
+      orderBy: [{ resource: "asc" }, { action: "asc" }],
+    });
+  }
+
+  // UPDATE a single permission
+  async updatePermission(
+    projectId: string | null,
+    role: string,
+    resource: string,
+    action: string,
+    allowed: boolean,
+  ) {
+    return this.prisma.projectPermission.upsert({
+      where: {
+        projectId_role_resource_action: {
+          projectId: projectId ?? null,
+          role,
+          resource: resource as any,
+          action: action as any,
+        },
+      },
+      update: { allowed },
+      create: {
+        projectId: projectId ?? null,
+        role,
+        resource: resource as any,
+        action: action as any,
+        allowed,
+      },
+    });
+  }
 }

@@ -13,10 +13,13 @@ import {
   removeFromSuite,
   getUser,
   getActiveProjectId,
+  getProjectMembers,
   type TestCase,
   type TestSuite,
   type TestCaseFilters,
 } from "@/lib/api";
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
 
@@ -536,6 +539,7 @@ type ActiveFilters = Pick<TestCaseFilters, "search" | "category" | "severity" | 
 export default function TestCasesClient() {
   const { loading: authLoading, user } = useRequireAuth();
   const isAdmin = user?.role === "admin";
+  const token = getStoredToken() ?? "";
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -609,6 +613,9 @@ export default function TestCasesClient() {
 
   // ── Selection / run ────────────────────────────────────────────────────────
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [members, setMembers] = useState<any[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const [starting, setStarting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [runModal, setRunModal] = useState<{ caseIds: string[]; defaultName: string } | null>(null);
@@ -675,6 +682,11 @@ export default function TestCasesClient() {
           Promise.all(ids.map((id) => getUser(id).then((u) => [id, u.name] as const)))
             .then((pairs) => setUserNames((prev) => ({ ...prev, ...Object.fromEntries(pairs) })))
             .catch(() => {}); // silent — never break the list
+        }
+        // Fetch project members for the assign dropdown
+        const projectId = getActiveProjectId();
+        if (projectId && token) {
+          getProjectMembers(projectId, token).then(setMembers).catch(() => {});
         }
       })
       .catch(() => setLoadError("Could not reach backend. Make sure it is running on port 3001."))
@@ -755,6 +767,44 @@ export default function TestCasesClient() {
     setSelected((prev) =>
       prev.size === testCases.length ? new Set() : new Set(testCases.map((tc) => tc.id)),
     );
+  }
+
+  // ── Assign helpers ────────────────────────────────────────────────────────
+
+  async function handleAssign(assignedTo: string | null) {
+    if (selected.size === 0) return;
+    setAssigning(true);
+    try {
+      await Promise.all(
+        Array.from(selected).map((id) =>
+          fetch(`${BASE_URL}/test-cases/${id}/assign`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ assignedTo }),
+          })
+        )
+      );
+      setSelected(new Set());
+      setShowAssignDropdown(false);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      console.error("Assign failed", e);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleAssignToMe() {
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      await handleAssign(payload.sub);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   // ── Run helpers ────────────────────────────────────────────────────────────
@@ -988,7 +1038,7 @@ export default function TestCasesClient() {
     ? suites.find((s) => s.id === selectedId)
     : null;
 
-  const colCount = 10;
+  const colCount = 11;
 
   const heading =
     selectedSuite ? selectedSuite.name
@@ -1177,6 +1227,115 @@ export default function TestCasesClient() {
           </div>
         </div>
 
+        {/* ── Bulk assign bar ── */}
+        {selected.size > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 16px", background: "#1a1a2e",
+            border: "1px solid #2563eb44", borderRadius: 8,
+            marginBottom: 12, flexWrap: "wrap",
+          }}>
+            <span style={{ fontSize: 13, color: "#60a5fa", fontWeight: 600 }}>
+              {selected.size} selected
+            </span>
+
+            <button
+              onClick={handleAssignToMe}
+              disabled={assigning}
+              style={{
+                padding: "5px 12px", borderRadius: 6, fontSize: 12,
+                fontWeight: 500, cursor: "pointer",
+                background: "#1e3a5f", color: "#60a5fa",
+                border: "1px solid #2563eb44",
+              }}
+            >
+              {assigning ? "Assigning…" : "Assign to Me"}
+            </button>
+
+            {isAdmin && (
+              <>
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowAssignDropdown(p => !p)}
+                    disabled={assigning}
+                    style={{
+                      padding: "5px 12px", borderRadius: 6, fontSize: 12,
+                      fontWeight: 500, cursor: "pointer",
+                      background: "transparent", color: "#eee",
+                      border: "1px solid #333",
+                    }}
+                  >
+                    Assign to… ▾
+                  </button>
+                  {showAssignDropdown && (
+                    <div style={{
+                      position: "absolute", top: "100%", left: 0, zIndex: 50,
+                      background: "#1a1a1a", border: "1px solid #2a2a2a",
+                      borderRadius: 8, padding: 8, minWidth: 220, marginTop: 4,
+                    }}>
+                      {members.length === 0 && (
+                        <div style={{ fontSize: 13, color: "#555", padding: "8px 12px" }}>
+                          No members found
+                        </div>
+                      )}
+                      {members.map(m => (
+                        <div
+                          key={m.userId}
+                          onClick={() => handleAssign(m.userId)}
+                          style={{
+                            padding: "8px 12px", cursor: "pointer",
+                            fontSize: 13, color: "#eee", borderRadius: 4,
+                            display: "flex", alignItems: "center", gap: 8,
+                          }}
+                          onMouseEnter={e =>
+                            (e.currentTarget.style.background = "#2a2a2a")}
+                          onMouseLeave={e =>
+                            (e.currentTarget.style.background = "transparent")}
+                        >
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%",
+                            background: "#1e3a5f", color: "#60a5fa",
+                            display: "flex", alignItems: "center",
+                            justifyContent: "center", fontSize: 10, fontWeight: 600,
+                          }}>
+                            {(m.user?.name ?? m.user?.email ?? "?")
+                              .slice(0, 2).toUpperCase()}
+                          </div>
+                          <span>{m.user?.name ?? m.user?.email}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleAssign(null)}
+                  disabled={assigning}
+                  style={{
+                    padding: "5px 12px", borderRadius: 6, fontSize: 12,
+                    fontWeight: 500, cursor: "pointer",
+                    background: "transparent", color: "#f87171",
+                    border: "1px solid #5c202044",
+                  }}
+                >
+                  Unassign
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={() => setSelected(new Set())}
+              style={{
+                padding: "5px 12px", borderRadius: 6, fontSize: 12,
+                cursor: "pointer", background: "transparent",
+                color: "#666", border: "1px solid #333", marginLeft: "auto",
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* ── Filter bar ── */}
         <div style={{
           display: "flex",
@@ -1310,6 +1469,7 @@ export default function TestCasesClient() {
                 <th style={th}>Category</th>
                 <th style={th}>Suite</th>
                 <th style={th}>Status</th>
+                <th style={th}>Assignee</th>
                 <th style={th}>Severity</th>
                 <th style={th}>Last Run</th>
                 <th style={th}>Created</th>
@@ -1424,6 +1584,26 @@ export default function TestCasesClient() {
                       >
                         {tc.status}
                       </span>
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      {(tc as any).assignee ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{
+                            width: 24, height: 24, borderRadius: "50%",
+                            background: "#1e3a5f", color: "#60a5fa",
+                            display: "flex", alignItems: "center",
+                            justifyContent: "center", fontSize: 10, fontWeight: 600,
+                          }}>
+                            {((tc as any).assignee?.name ?? (tc as any).assignee?.email ?? "?")
+                              .slice(0, 2).toUpperCase()}
+                          </div>
+                          <span style={{ fontSize: 12, color: "#888" }}>
+                            {(tc as any).assignee?.name ?? (tc as any).assignee?.email}
+                          </span>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 12, color: "#444" }}>—</span>
+                      )}
                     </td>
                     <td style={td}><SeverityBadge severity={tc.severity} /></td>
                     <td style={td}><LastRunCell results={tc.results} /></td>

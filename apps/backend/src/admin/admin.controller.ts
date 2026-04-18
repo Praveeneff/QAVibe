@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Body,
+  Controller, Get, Post, Put, Body,
   Param, UseGuards,
 } from "@nestjs/common";
 import { AdminService } from "./admin.service";
@@ -47,5 +47,27 @@ export class AdminController {
   @Post("token-usage/:userId/reset")
   resetTokenUsage(@Param("userId") userId: string) {
     return this.adminService.resetTokenUsage(userId);
+  }
+
+  @Get("projects/:projectId/permissions")
+  getPermissions(@Param("projectId") projectId: string) {
+    return this.adminService.getPermissions(projectId);
+  }
+
+  @Put("projects/:projectId/permissions")
+  updatePermission(
+    @Param("projectId") projectId: string,
+    @Body("role") role: string,
+    @Body("resource") resource: string,
+    @Body("action") action: string,
+    @Body("allowed") allowed: boolean,
+  ) {
+    return this.adminService.updatePermission(
+      projectId,
+      role,
+      resource,
+      action,
+      allowed,
+    );
   }
 }

@@ -19,9 +19,12 @@ function computePassRate(counts: Record<string, number>, total: number): number 
 export class TestRunsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAllRuns(projectId?: string) {
+  async getAllRuns(projectId?: string, assignedTo?: string) {
     const runs = await this.prisma.testRun.findMany({
-      where: projectId ? { projectId } : undefined,
+      where: {
+        ...(projectId  ? { projectId }  : {}),
+        ...(assignedTo ? { assignedTo } : {}),
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

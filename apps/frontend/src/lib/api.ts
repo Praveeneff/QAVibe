@@ -214,11 +214,30 @@ export const createTestRun = (
 export const getTestRun = (id: string) =>
   request<TestRun>(`/test-runs/${id}`);
 
-export const updateTestResult = (runId: string, resultId: string, status: string, notes?: string) =>
-  request<TestResult>(`/test-runs/${runId}/results/${resultId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status, notes }),
-  });
+export async function updateTestResult(
+  runId: string,
+  resultId: string,
+  status: string,
+  notes: string | undefined,
+  token: string,
+): Promise<any> {
+  const res = await fetch(
+    `${BASE_URL}/test-runs/${runId}/results/${resultId}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        status,
+        ...(notes ? { notes } : {}),
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to update result (${res.status})`);
+  return res.json();
+}
 
 export async function uploadScreenshot(runId: string, resultId: string, file: File): Promise<{ screenshotUrl: string }> {
   const token = getStoredToken();
@@ -372,7 +391,7 @@ export async function getUser(id: string): Promise<UserProfile> {
 
 export function getActiveProjectId(): string | null {
   try {
-    const stored = localStorage.getItem("activeProject");
+    const stored = localStorage.getItem("qavibe_project");
     return stored ? JSON.parse(stored).id : null;
   } catch { return null; }
 }

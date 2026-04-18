@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { DEFAULT_PERMISSIONS } from "../admin/permissions.seed";
 
 @Injectable()
 export class ProjectsService {
@@ -53,7 +54,7 @@ export class ProjectsService {
 
   // ── Create project; creator becomes OWNER member automatically ────────────
   async create(userId: string, name: string, description?: string) {
-    return this.prisma.project.create({
+    const project = await this.prisma.project.create({
       data: {
         name,
         description: description ?? null,
@@ -69,6 +70,23 @@ export class ProjectsService {
         },
       },
     });
+
+    // Seed default permissions for this project
+    await Promise.all(
+      DEFAULT_PERMISSIONS.map((perm) =>
+        this.prisma.projectPermission.create({
+          data: {
+            projectId: project.id,
+            role: "tester",
+            resource: perm.resource as any,
+            action: perm.action as any,
+            allowed: perm.allowed,
+          },
+        })
+      )
+    );
+
+    return project;
   }
 
   // ── Update name / description (owner only) ────────────────────────────────

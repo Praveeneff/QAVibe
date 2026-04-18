@@ -13,8 +13,11 @@ export class TestRunsController {
   // ── Static routes first (must precede :id to avoid param capture) ──────────
 
   @Get()
-  getAllRuns(@Query("projectId") projectId?: string) {
-    return this.testRunsService.getAllRuns(projectId);
+  getAllRuns(
+    @Query("projectId")  projectId?: string,
+    @Query("assignedTo") assignedTo?: string,
+  ) {
+    return this.testRunsService.getAllRuns(projectId, assignedTo);
   }
 
   @Get("stats")
