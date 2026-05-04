@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { getSuites, type TestSuite } from "@/lib/api";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
+import { getSuites, getActiveProjectId, type TestSuite } from "@/lib/api";
+import { getStoredToken } from "@/context/AuthContext";
+import { Loader2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 interface ScanMatch {
@@ -20,7 +22,7 @@ interface ScanResult {
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 async function runScan(suiteId?: string): Promise<ScanResult> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("qavibe_token") : null;
+  const token = getStoredToken();
   const res = await fetch(`${BASE_URL}/test-cases/scan-duplicates`, {
     method: "POST",
     headers: {
@@ -33,21 +35,25 @@ async function runScan(suiteId?: string): Promise<ScanResult> {
   return res.json();
 }
 
-function LevelBadge({ level }: { level: "high" | "medium" }) {
-  const styles = {
-    high:   { bg: "#3d0a0a", fg: "#f87171", border: "#7f2020" },
-    medium: { bg: "#3d2a0a", fg: "#fb923c", border: "#92400e" },
-  };
-  const { bg, fg, border } = styles[level];
+function ScoreBadge({ level, score }: { level: "high" | "medium"; score: number }) {
   return (
-    <span style={{
-      fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const,
-      letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 4,
-      background: bg, color: fg, border: `1px solid ${border}`, flexShrink: 0,
-    }}>
-      {level}
+    <span className={cn(
+      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border",
+      level === "high"
+        ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+        : "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    )}>
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full",
+        level === "high" ? "bg-rose-400" : "bg-amber-400",
+      )} />
+      {score}% match
     </span>
   );
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("rounded-lg bg-white/[0.04] animate-pulse", className)} />;
 }
 
 export default function DuplicateScannerPage() {
@@ -58,7 +64,7 @@ export default function DuplicateScannerPage() {
   const [error,    setError]    = useState("");
 
   useEffect(() => {
-    getSuites().then(setSuites).catch(() => {});
+    getSuites(getActiveProjectId() ?? undefined).then(setSuites).catch(() => {});
   }, []);
 
   async function handleScan() {
@@ -66,8 +72,7 @@ export default function DuplicateScannerPage() {
     setError("");
     setResult(null);
     try {
-      const data = await runScan(suiteId || undefined);
-      setResult(data);
+      setResult(await runScan(suiteId || undefined));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Scan failed");
     } finally {
@@ -77,100 +82,113 @@ export default function DuplicateScannerPage() {
 
   return (
     <ProtectedRoute>
-    <div style={{ padding: "32px 40px", maxWidth: 820, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#eee" }}>
-        Duplicate Scanner
-      </h1>
-      <p style={{ fontSize: 13, color: "#666", marginBottom: 24 }}>
-        Finds potentially duplicate test cases using word-overlap analysis (no AI). Pairs with Jaccard similarity ≥ 40% are flagged.
-      </p>
-
-      {/* Controls */}
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 24 }}>
-        <select
-          value={suiteId}
-          onChange={(e) => setSuiteId(e.target.value)}
-          style={{
-            padding: "7px 10px", fontSize: 13, background: "#1a1a1a",
-            color: "#eee", border: "1px solid #333", borderRadius: 4, minWidth: 200,
-          }}
-        >
-          <option value="">All suites</option>
-          {suites.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
-
-        <button
-          onClick={handleScan}
-          disabled={scanning}
-          style={{
-            padding: "7px 20px", fontSize: 13, fontWeight: 600,
-            background: scanning ? "#333" : "#0070f3",
-            color: "#fff", border: "none", borderRadius: 4, cursor: scanning ? "not-allowed" : "pointer",
-          }}
-        >
-          {scanning ? "Scanning…" : "Run Scan"}
-        </button>
+      {/* Ambient glows */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-teal-500/4 blur-[100px]" />
       </div>
 
-      {error && (
-        <p style={{ color: "#f87171", fontSize: 13, marginBottom: 16 }}>{error}</p>
-      )}
+      <main className="px-8 py-8 min-h-screen">
+        <div className="max-w-[820px]">
+          <h1 className="m-0 mb-1 text-2xl font-bold text-foreground">Duplicate Scanner</h1>
+          <p className="mt-0 mb-8 text-[13px] text-slate-500">
+            Finds potentially duplicate test cases using word-overlap analysis. Pairs with Jaccard similarity ≥ 40% are flagged.
+          </p>
 
-      {/* Results */}
-      {result !== null && (
-        <>
-          <div style={{ fontSize: 13, color: "#888", marginBottom: 16 }}>
-            {result.total === 0
-              ? "No duplicate pairs found."
-              : `Found ${result.total} potential duplicate pair${result.total === 1 ? "" : "s"}${result.matches.length < result.total ? ` (showing top ${result.matches.length})` : ""}.`
-            }
+          {/* Controls */}
+          <div className="flex gap-3 items-center mb-8">
+            <select
+              value={suiteId}
+              onChange={(e) => setSuiteId(e.target.value)}
+              className="px-3 py-2 text-[13px] bg-[rgba(15,15,20,0.7)] text-foreground border border-white/[0.08] rounded-lg min-w-[200px] cursor-pointer focus:outline-none focus:border-violet-500/50 transition-colors"
+            >
+              <option value="">All suites</option>
+              {suites.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleScan}
+              disabled={scanning}
+              className={cn(
+                "inline-flex items-center gap-2 px-5 py-2 text-[13px] font-semibold text-white border-none rounded-lg transition-colors",
+                scanning
+                  ? "bg-slate-700 cursor-not-allowed"
+                  : "bg-primary cursor-pointer hover:bg-primary/90",
+              )}
+            >
+              {scanning && <Loader2 className="h-4 w-4 animate-spin" />}
+              {scanning ? "Scanning…" : "Run Scan"}
+            </button>
           </div>
 
-          {result.matches.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {result.matches.map((m, i) => (
-                <div key={i} style={{
-                  background: "#111",
-                  border: "1px solid #222",
-                  borderRadius: 6,
-                  padding: "12px 14px",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <LevelBadge level={m.level} />
-                    <span style={{ fontSize: 12, color: "#555", marginLeft: "auto" }}>
-                      {m.score}% similarity
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, color: "#555", marginBottom: 2 }}>Case A</div>
-                      <a
-                        href={`/test-cases/${m.idA}`}
-                        style={{ fontSize: 13, color: "#60a5fa", textDecoration: "none" }}
-                      >
-                        {m.titleA.length > 70 ? m.titleA.slice(0, 70) + "…" : m.titleA}
-                      </a>
-                    </div>
-                    <div style={{ color: "#333", alignSelf: "center", fontSize: 16 }}>↔</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, color: "#555", marginBottom: 2 }}>Case B</div>
-                      <a
-                        href={`/test-cases/${m.idB}`}
-                        style={{ fontSize: 13, color: "#60a5fa", textDecoration: "none" }}
-                      >
-                        {m.titleB.length > 70 ? m.titleB.slice(0, 70) + "…" : m.titleB}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {error && (
+            <div className="mb-6 px-4 py-3 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 text-sm">
+              {error}
             </div>
           )}
-        </>
-      )}
-    </div>
+
+          {scanning && (
+            <div className="flex flex-col gap-2.5">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+            </div>
+          )}
+
+          {!scanning && result !== null && (
+            <>
+              <div className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-lg border mb-5 text-[13px]",
+                result.total === 0
+                  ? "border-teal-500/20 bg-teal-500/5 text-teal-400"
+                  : "border-amber-500/20 bg-amber-500/5 text-amber-300",
+              )}>
+                <span className="text-base">{result.total === 0 ? "✓" : "⚠"}</span>
+                {result.total === 0
+                  ? "No duplicate pairs found — your test suite looks clean."
+                  : `Found ${result.total} potential duplicate pair${result.total === 1 ? "" : "s"}${result.matches.length < result.total ? ` (showing top ${result.matches.length})` : ""}.`
+                }
+              </div>
+
+              {result.matches.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {result.matches.map((m, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl border border-white/[0.06] bg-[rgba(15,15,20,0.65)] backdrop-blur-sm px-4 py-4"
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <ScoreBadge level={m.level} score={m.score} />
+                      </div>
+                      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
+                        <div className="rounded-lg bg-white/[0.03] border border-white/[0.05] px-3 py-2.5">
+                          <div className="text-[10px] text-slate-600 uppercase tracking-[0.06em] mb-1">Case A</div>
+                          <a
+                            href={`/test-cases/${m.idA}`}
+                            className="text-[13px] text-violet-400 hover:text-violet-300 no-underline hover:underline transition-colors line-clamp-2"
+                          >
+                            {m.titleA}
+                          </a>
+                        </div>
+                        <div className="text-slate-600 self-center text-sm mt-3">↔</div>
+                        <div className="rounded-lg bg-white/[0.03] border border-white/[0.05] px-3 py-2.5">
+                          <div className="text-[10px] text-slate-600 uppercase tracking-[0.06em] mb-1">Case B</div>
+                          <a
+                            href={`/test-cases/${m.idB}`}
+                            className="text-[13px] text-violet-400 hover:text-violet-300 no-underline hover:underline transition-colors line-clamp-2"
+                          >
+                            {m.titleB}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </main>
     </ProtectedRoute>
   );
 }

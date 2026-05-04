@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 const ENVS = ["", "staging", "production", "dev", "qa"] as const;
@@ -20,20 +21,15 @@ export default function EnvFilter({ current }: { current: string }) {
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 13, color: "#666" }}>Env:</span>
+    <div className="flex items-center gap-2">
+      <span className="text-[13px] text-slate-500">Env:</span>
       <select
         value={current}
         onChange={(e) => handleChange(e.target.value)}
-        style={{
-          background: "#1a1a1a",
-          border: "1px solid #333",
-          color: current ? "#eee" : "#666",
-          borderRadius: 4,
-          padding: "5px 10px",
-          fontSize: 13,
-          cursor: "pointer",
-        }}
+        className={cn(
+          "bg-card border border-border rounded px-2.5 py-1 text-[13px] cursor-pointer focus:outline-none focus:border-primary transition-colors",
+          current ? "text-foreground" : "text-slate-500"
+        )}
       >
         <option value="">All</option>
         {ENVS.filter(Boolean).map((env) => (

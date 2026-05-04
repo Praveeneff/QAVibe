@@ -2,14 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getStoredToken } from "@/context/AuthContext";
 import { updateTestResult } from "@/lib/api";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Tailwind variant maps ─────────────────────────────────────────────────────
 
+const RUN_STATUS_CLASSES: Record<string, string> = {
+  pending:  "bg-card text-slate-400",
+  active:   "bg-blue-950/40 text-blue-400",
+  done:     "bg-emerald-950/40 text-emerald-400",
+  complete: "bg-emerald-950/40 text-emerald-400",
+  failed:   "bg-destructive/10 text-red-400",
+};
+
+// result status uses dynamic opacity — must stay inline
 const STATUS_COLORS: Record<string, string> = {
   pass:    "#22c55e",
   fail:    "#ef4444",
@@ -32,16 +42,8 @@ function parseSteps(raw: string | null | undefined): string[] {
 // ── Badges ────────────────────────────────────────────────────────────────────
 
 function RunStatusBadge({ status }: { status: string }) {
-  const colorMap: Record<string, { bg: string; color: string }> = {
-    pending:  { bg: "#1a1a1a", color: "#888" },
-    active:   { bg: "#0a1f3d", color: "#60a5fa" },
-    done:     { bg: "#0a3d0a", color: "#4ade80" },
-    complete: { bg: "#0a3d0a", color: "#4ade80" },
-    failed:   { bg: "#2d1414", color: "#f87171" },
-  };
-  const { bg, color } = colorMap[status] ?? { bg: "#1a1a1a", color: "#888" };
   return (
-    <span style={{ padding: "2px 10px", borderRadius: 4, fontSize: 12, fontWeight: 600, background: bg, color }}>
+    <span className={cn("px-2.5 py-px rounded text-xs font-semibold", RUN_STATUS_CLASSES[status] ?? "bg-card text-slate-400")}>
       {status}
     </span>
   );
@@ -99,7 +101,7 @@ function ExecuteContent() {
     const noteText = notes[resultId];
     setSavingResult(resultId);
     try {
-      await updateTestResult(runId, resultId, status, noteText, token);
+      await updateTestResult(runId, resultId, status, noteText, token, run?.projectId);
       setRun((prev: any) => ({
         ...prev,
         results: prev.results.map((r: any) =>
@@ -131,16 +133,16 @@ function ExecuteContent() {
 
   if (loading) {
     return (
-      <div style={styles.page}>
-        <p style={{ color: "#666", fontSize: 14 }}>Loading run…</p>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <p className="text-slate-500 text-sm">Loading run…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={styles.page}>
-        <div style={styles.errorBox}>{error}</div>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <div className={errorBoxClass}>{error}</div>
       </div>
     );
   }
@@ -153,48 +155,49 @@ function ExecuteContent() {
   const allDone = done === results.length && results.length > 0;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="min-h-screen bg-background px-8 py-12">
+      <div className="w-full max-w-[1200px] mx-auto">
 
         {/* Back */}
         <button
           onClick={() => router.push("/my-tasks")}
-          style={styles.backBtn}
+          className="bg-transparent border-none text-slate-500 text-[13px] cursor-pointer p-0 pb-6 block hover:text-slate-300"
         >
           ← Back to My Tasks
         </button>
 
         {/* Header */}
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={styles.title}>{run.name}</h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-            <span style={{ fontSize: 13, color: "#888" }}>{run.environment}</span>
+        <div className="mb-7">
+          <h1 className="m-0 text-[26px] font-bold text-foreground">{run.name}</h1>
+          <div className="flex items-center gap-3 mt-2">
+            <span className="text-[13px] text-slate-400">{run.environment}</span>
             <RunStatusBadge status={run.status} />
           </div>
         </div>
 
         {/* Progress bar */}
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13, color: "#666" }}>
+        <div className="mb-7">
+          <div className="flex justify-between mb-2 text-[13px] text-slate-500">
             <span>Execution progress</span>
-            <span style={{ color: pct === 100 ? "#22c55e" : "#aaa" }}>{done} of {results.length} executed ({pct}%)</span>
+            <span className={pct === 100 ? "text-emerald-400" : "text-slate-400"}>
+              {done} of {results.length} executed ({pct}%)
+            </span>
           </div>
-          <div style={{ height: 6, background: "#2a2a2a", borderRadius: 3 }}>
-            <div style={{
-              height: "100%", borderRadius: 3,
-              background: pct === 100 ? "#22c55e" : "#2563eb",
-              width: `${pct}%`, transition: "width 0.3s",
-            }} />
+          <div className="h-1.5 bg-slate-800 rounded">
+            <div
+              className={cn("h-full rounded transition-[width]", pct === 100 ? "bg-emerald-500" : "bg-blue-600")}
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
 
         {/* Results table */}
-        <div style={styles.card}>
-          <table style={styles.table}>
+        <div className="bg-card border border-slate-800 rounded-xl overflow-auto">
+          <table className="w-full border-collapse">
             <thead>
               <tr>
                 {["tcId", "Title", "Preconditions", "Steps", "Expected", "Status", "Result", "Notes"].map((h) => (
-                  <th key={h} style={styles.th}>{h}</th>
+                  <th key={h} className={thClass}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -203,82 +206,74 @@ function ExecuteContent() {
                 const tc = result.testCase ?? {};
                 const steps = parseSteps(tc.steps);
                 return (
-                  <tr key={result.id} style={{ borderBottom: "1px solid #1a1a1a", verticalAlign: "top" }}>
+                  <tr key={result.id} className="border-b border-slate-900 align-top">
 
-                    {/* tcId */}
-                    <td style={{ ...styles.td, whiteSpace: "nowrap" }}>
-                      <span style={{
-                        fontFamily: "monospace", fontSize: 11, color: "#555",
-                        background: "#111", border: "1px solid #2a2a2a",
-                        borderRadius: 3, padding: "2px 6px",
-                      }}>
+                    <td className={cn(tdClass, "whitespace-nowrap")}>
+                      <span className="font-mono text-[11px] text-slate-500 bg-[#111] border border-slate-800 rounded-[3px] px-1.5 py-px">
                         {tc.tcId ?? "—"}
                       </span>
                     </td>
 
-                    {/* Title */}
-                    <td style={{ ...styles.td, minWidth: 160 }}>
-                      <span style={{ fontSize: 13, color: "#eee", fontWeight: 500 }}>{tc.title ?? "—"}</span>
+                    <td className={cn(tdClass, "min-w-[160px]")}>
+                      <span className="text-[13px] text-foreground font-medium">{tc.title ?? "—"}</span>
                     </td>
 
-                    {/* Preconditions */}
-                    <td style={{ ...styles.td, minWidth: 140 }}>
+                    <td className={cn(tdClass, "min-w-[140px]")}>
                       {tc.preconditions ? (
-                        <p style={{ margin: 0, fontSize: 12, color: "#888", lineHeight: 1.5 }}>{tc.preconditions}</p>
+                        <p className="m-0 text-xs text-slate-400 leading-relaxed">{tc.preconditions}</p>
                       ) : (
-                        <span style={{ color: "#333", fontSize: 12 }}>—</span>
+                        <span className="text-slate-700 text-xs">—</span>
                       )}
                     </td>
 
-                    {/* Steps */}
-                    <td style={{ ...styles.td, minWidth: 200 }}>
+                    <td className={cn(tdClass, "min-w-[200px]")}>
                       {steps.length > 0 ? (
-                        <ol style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#aaa", lineHeight: 1.6 }}>
+                        <ol className="m-0 pl-4 text-xs text-muted-foreground leading-relaxed">
                           {steps.map((s, i) => <li key={i}>{s}</li>)}
                         </ol>
                       ) : (
-                        <span style={{ color: "#333", fontSize: 12 }}>—</span>
+                        <span className="text-slate-700 text-xs">—</span>
                       )}
                     </td>
 
-                    {/* Expected Result */}
-                    <td style={{ ...styles.td, minWidth: 140 }}>
+                    <td className={cn(tdClass, "min-w-[140px]")}>
                       {tc.expectedResult ? (
-                        <p style={{ margin: 0, fontSize: 12, color: "#888", lineHeight: 1.5 }}>{tc.expectedResult}</p>
+                        <p className="m-0 text-xs text-slate-400 leading-relaxed">{tc.expectedResult}</p>
                       ) : (
-                        <span style={{ color: "#333", fontSize: 12 }}>—</span>
+                        <span className="text-slate-700 text-xs">—</span>
                       )}
                     </td>
 
-                    {/* Status badge */}
-                    <td style={styles.td}>
+                    <td className={tdClass}>
                       <ResultStatusBadge status={result.status} />
                     </td>
 
-                    {/* Result buttons */}
-                    <td style={{ ...styles.td, minWidth: 180 }}>
-                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                        {["pass", "fail", "blocked", "skip"].map((s) => (
-                          <button
-                            key={s}
-                            disabled={savingResult === result.id}
-                            onClick={() => handleSetResult(result.id, s)}
-                            style={{
-                              padding: "3px 9px", borderRadius: 4, fontSize: 11,
-                              fontWeight: 600, cursor: "pointer", border: "none",
-                              background: result.status === s ? STATUS_COLORS[s] : "#2a2a2a",
-                              color:      result.status === s ? "#fff" : "#888",
-                              opacity:    savingResult === result.id ? 0.5 : 1,
-                            }}
-                          >
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
-                          </button>
-                        ))}
+                    <td className={cn(tdClass, "min-w-[180px]")}>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {["pass", "fail", "blocked", "skip"].map((s) => {
+                          const color = STATUS_COLORS[s] ?? "#555";
+                          const isActive = result.status === s;
+                          return (
+                            <button
+                              key={s}
+                              disabled={savingResult === result.id}
+                              onClick={() => handleSetResult(result.id, s)}
+                              style={{
+                                padding: "3px 9px", borderRadius: 4, fontSize: 11,
+                                fontWeight: 600, cursor: "pointer", border: "none",
+                                background: isActive ? color : "#2a2a2a",
+                                color: isActive ? "#fff" : "#888",
+                                opacity: savingResult === result.id ? 0.5 : 1,
+                              }}
+                            >
+                              {s.charAt(0).toUpperCase() + s.slice(1)}
+                            </button>
+                          );
+                        })}
                       </div>
                     </td>
 
-                    {/* Notes */}
-                    <td style={{ ...styles.td, minWidth: 180 }}>
+                    <td className={cn(tdClass, "min-w-[180px]")}>
                       {(result.status === "fail" || result.status === "blocked") && (
                         <textarea
                           value={notes[result.id] ?? result.notes ?? ""}
@@ -286,12 +281,7 @@ function ExecuteContent() {
                           onBlur={() => handleSetResult(result.id, result.status)}
                           placeholder="Add notes…"
                           rows={2}
-                          style={{
-                            background: "#1a1a1a", border: "1px solid #333",
-                            borderRadius: 4, color: "#eee", fontSize: 12,
-                            padding: "6px 8px", width: "100%",
-                            resize: "vertical", fontFamily: "inherit",
-                          }}
+                          className="bg-card border border-border rounded text-foreground text-xs px-2 py-1.5 w-full resize-y font-inherit focus:outline-none focus:border-primary"
                         />
                       )}
                     </td>
@@ -302,13 +292,12 @@ function ExecuteContent() {
           </table>
         </div>
 
-        {/* Mark Complete button */}
         {allDone && run.status !== "done" && (
-          <div style={{ marginTop: 24, textAlign: "right" }}>
+          <div className="mt-6 text-right">
             <button
               onClick={handleComplete}
               disabled={completing}
-              style={styles.completeBtn}
+              className={cn("bg-emerald-600 text-white border-none rounded-lg px-6 py-2.5 text-sm font-semibold cursor-pointer hover:bg-emerald-500 transition-colors", completing && "opacity-50 cursor-not-allowed")}
             >
               {completing ? "Completing…" : "Mark Run Complete"}
             </button>
@@ -316,10 +305,8 @@ function ExecuteContent() {
         )}
 
         {run.status === "done" && (
-          <div style={{ marginTop: 24, textAlign: "right" }}>
-            <span style={{ fontSize: 13, color: "#4ade80", fontWeight: 600 }}>
-              ✓ Run completed
-            </span>
+          <div className="mt-6 text-right">
+            <span className="text-[13px] text-emerald-400 font-semibold">✓ Run completed</span>
           </div>
         )}
 
@@ -328,75 +315,6 @@ function ExecuteContent() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    padding: "48px 32px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: 1200,
-    margin: "0 auto",
-  },
-  backBtn: {
-    background: "transparent",
-    border: "none",
-    color: "#555",
-    fontSize: 13,
-    cursor: "pointer",
-    padding: "0 0 24px",
-    display: "block",
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  card: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    overflow: "auto",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-  th: {
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#555",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    padding: "10px 14px",
-    borderBottom: "1px solid #2a2a2a",
-    whiteSpace: "nowrap",
-  },
-  td: {
-    padding: "12px 14px",
-    verticalAlign: "top",
-  },
-  completeBtn: {
-    background: "#22c55e",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    padding: "10px 24px",
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const thClass = "text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-3.5 py-2.5 border-b border-slate-800 whitespace-nowrap";
+const tdClass = "px-3.5 py-3 align-top";
+const errorBoxClass = "bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]";

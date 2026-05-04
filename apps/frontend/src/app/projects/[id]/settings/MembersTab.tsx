@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { getStoredToken } from "@/context/AuthContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -16,9 +17,9 @@ interface Member {
 
 export default function MembersTab({ projectId }: { projectId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading]  = useState(true);
-  const [error, setError]      = useState<string | null>(null);
-  const [acting, setActing]    = useState<string | null>(null); // userId being actioned
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [acting, setActing]   = useState<string | null>(null);
 
   async function fetchMembers() {
     const token = getStoredToken();
@@ -77,71 +78,63 @@ export default function MembersTab({ projectId }: { projectId: string }) {
     }
   }
 
-  if (loading) return <p style={{ color: "#666", fontSize: 14 }}>Loading members…</p>;
-  if (error)   return <div style={styles.errorBox}>{error}</div>;
+  if (loading) return <p className="text-slate-500 text-sm">Loading members…</p>;
+  if (error)   return <div className={errorBoxClass}>{error}</div>;
 
   return (
     <div>
-      <div style={styles.sectionLabel}>All users — {members.length}</div>
-      <table style={styles.table}>
+      <div className={sectionLabelClass}>All users — {members.length}</div>
+      <table className="w-full border-collapse">
         <thead>
           <tr>
             {["User", "System Role", "Project Access", "Action"].map((h) => (
-              <th key={h} style={styles.th}>{h}</th>
+              <th key={h} className={thClass}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {members.map((m) => (
-            <tr key={m.id} style={styles.row}>
+            <tr key={m.id}>
               {/* User */}
-              <td style={styles.td}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={styles.avatar}>
-                    {m.name.slice(0, 2).toUpperCase()}
-                  </div>
+              <td className={tdClass}>
+                <div className="flex items-center gap-2.5">
+                  <div className={avatarClass}>{m.name.slice(0, 2).toUpperCase()}</div>
                   <div>
-                    <div style={{ fontSize: 13, color: "#eee", fontWeight: 500 }}>{m.name}</div>
-                    <div style={{ fontSize: 12, color: "#555" }}>{m.email}</div>
+                    <div className="text-[13px] text-foreground font-medium">{m.name}</div>
+                    <div className="text-xs text-slate-500">{m.email}</div>
                   </div>
                 </div>
               </td>
 
               {/* System Role */}
-              <td style={styles.td}>
-                <span style={{
-                  ...styles.badge,
-                  background: m.role === "admin" ? "#1e3a5f" : "#1a1a1a",
-                  color:      m.role === "admin" ? "#60a5fa" : "#888",
-                  border:     m.role === "admin" ? "1px solid #2563eb44" : "1px solid #333",
-                }}>
+              <td className={tdClass}>
+                <span className={cn(
+                  badgeClass,
+                  m.role === "admin"
+                    ? "bg-blue-950/40 text-blue-400 border border-blue-800/40"
+                    : "bg-card text-slate-400 border border-slate-800",
+                )}>
                   {m.role}
                 </span>
               </td>
 
               {/* Project Access */}
-              <td style={styles.td}>
+              <td className={tdClass}>
                 {m.isMember && m.projectRole === "OWNER" && (
-                  <span style={{ ...styles.badge, background: "#1e3a5f", color: "#60a5fa", border: "1px solid #2563eb44" }}>
-                    Owner
-                  </span>
+                  <span className={cn(badgeClass, "bg-blue-950/40 text-blue-400 border border-blue-800/40")}>Owner</span>
                 )}
                 {m.isMember && m.projectRole === "MEMBER" && (
-                  <span style={{ ...styles.badge, background: "#1a2a1a", color: "#4ade80", border: "1px solid #16a34a44" }}>
-                    Member
-                  </span>
+                  <span className={cn(badgeClass, "bg-emerald-950/30 text-emerald-400 border border-emerald-800/40")}>Member</span>
                 )}
                 {!m.isMember && (
-                  <span style={{ ...styles.badge, background: "#1a1a1a", color: "#555", border: "1px solid #2a2a2a" }}>
-                    No access
-                  </span>
+                  <span className={cn(badgeClass, "bg-card text-slate-500 border border-slate-800")}>No access</span>
                 )}
               </td>
 
               {/* Action */}
-              <td style={styles.td}>
+              <td className={tdClass}>
                 {m.isMember && m.projectRole === "OWNER" && (
-                  <button disabled style={{ ...styles.actionBtn, color: "#444", borderColor: "#2a2a2a", cursor: "default" }}>
+                  <button disabled className={cn(actionBtnClass, "text-slate-700 border-slate-800 cursor-default")}>
                     Cannot remove
                   </button>
                 )}
@@ -149,7 +142,7 @@ export default function MembersTab({ projectId }: { projectId: string }) {
                   <button
                     onClick={() => removeMember(m.id)}
                     disabled={acting === m.id}
-                    style={{ ...styles.actionBtn, color: "#f87171", borderColor: "#5c2020" }}
+                    className={cn(actionBtnClass, "text-red-400 border-red-900 hover:bg-red-950/20", acting === m.id && "opacity-50 cursor-not-allowed")}
                   >
                     {acting === m.id ? "…" : "Remove"}
                   </button>
@@ -158,7 +151,7 @@ export default function MembersTab({ projectId }: { projectId: string }) {
                   <button
                     onClick={() => addMember(m.id)}
                     disabled={acting === m.id}
-                    style={{ ...styles.actionBtn, color: "#60a5fa", borderColor: "#2563eb44" }}
+                    className={cn(actionBtnClass, "text-blue-400 border-blue-900 hover:bg-blue-950/20", acting === m.id && "opacity-50 cursor-not-allowed")}
                   >
                     {acting === m.id ? "…" : "Add to project"}
                   </button>
@@ -172,75 +165,10 @@ export default function MembersTab({ projectId }: { projectId: string }) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 500,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
-    marginBottom: 12,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-  th: {
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#555",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    padding: "8px 12px",
-    borderBottom: "1px solid #2a2a2a",
-  },
-  td: {
-    padding: "12px 12px",
-    borderBottom: "1px solid #1e1e1e",
-    verticalAlign: "middle",
-  },
-  row: {
-    background: "transparent",
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: "#1a1a2e",
-    color: "#60a5fa",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12,
-    fontWeight: 600,
-    border: "1px solid #1e3a5f",
-    flexShrink: 0,
-  },
-  badge: {
-    display: "inline-block",
-    fontSize: 11,
-    fontWeight: 600,
-    borderRadius: 4,
-    padding: "2px 8px",
-    letterSpacing: "0.05em",
-    textTransform: "uppercase",
-  },
-  actionBtn: {
-    background: "transparent",
-    border: "1px solid",
-    borderRadius: 6,
-    padding: "5px 12px",
-    fontSize: 12,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const sectionLabelClass = "text-[11px] font-medium text-slate-500 uppercase tracking-[0.07em] mb-3";
+const thClass = "text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-3 py-2 border-b border-slate-800";
+const tdClass = "px-3 py-3 border-b border-slate-900 align-middle";
+const avatarClass = "w-8 h-8 rounded-full bg-blue-950/40 text-blue-400 flex items-center justify-center text-xs font-semibold border border-blue-900 shrink-0";
+const badgeClass = "inline-block text-[11px] font-semibold rounded px-2 py-px tracking-[0.05em] uppercase";
+const actionBtnClass = "bg-transparent border rounded-md px-3 py-1 text-xs font-medium cursor-pointer transition-colors";
+const errorBoxClass = "bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]";

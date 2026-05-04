@@ -11,12 +11,13 @@ import { Role } from '@prisma/client';
 const BCRYPT_ROUNDS = 12;
 
 export type SafeUser = {
-  id:        string;
-  email:     string;
-  name:      string;
-  role:      string;
-  createdAt: Date;
-  updatedAt: Date;
+  id:         string;
+  email:      string;
+  name:       string;
+  role:       string;
+  createdAt:  Date;
+  updatedAt:  Date;
+  tokenUsed:  number;
 };
 
 function stripHash(user: { passwordHash: string } & SafeUser): SafeUser {
@@ -102,6 +103,25 @@ export class AuthService {
       globalLimit,
       percentUsed,
     };
+  }
+
+  // ── Admin: list all users ─────────────────────────────────────────────────
+
+  async listUsers(): Promise<SafeUser[]> {
+    const users = await this.prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+    });
+    return users.map(stripHash);
+  }
+
+  // ── Admin: change role ────────────────────────────────────────────────────
+
+  async setRole(targetId: string, role: Role): Promise<SafeUser> {
+    const user = await this.prisma.user.update({
+      where: { id: targetId },
+      data: { role },
+    });
+    return stripHash(user);
   }
 
   // ── Private ────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
 import { usePermission } from "@/context/PermissionsContext";
@@ -13,16 +14,59 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function decodeUserId(token: string): string | null {
-  try {
-    return JSON.parse(atob(token.split(".")[1])).sub ?? null;
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(atob(token.split(".")[1])).sub ?? null; }
+  catch { return null; }
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Badges ────────────────────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
+const RUN_STATUS_CLASSES: Record<string, string> = {
+  pending:  "bg-card text-slate-400",
+  active:   "bg-blue-950 text-blue-400",
+  complete: "bg-emerald-950 text-emerald-400",
+  done:     "bg-emerald-950 text-emerald-400",
+  failed:   "bg-red-950 text-red-400",
+};
+
+function RunStatusBadge({ status }: { status: string }) {
+  return (
+    <span className={cn("px-2 py-0.5 rounded text-[11px] font-semibold", RUN_STATUS_CLASSES[status] ?? "bg-card text-slate-400")}>
+      {status}
+    </span>
+  );
+}
+
+const PRIORITY_TEXT_CLASSES: Record<string, string> = {
+  P1: "text-red-500 border-red-500/20",
+  P2: "text-amber-400 border-amber-400/20",
+  P3: "text-blue-400 border-blue-400/20",
+  P4: "text-slate-400 border-slate-400/20",
+};
+
+function PriorityBadge({ priority }: { priority: string }) {
+  return (
+    <span className={cn("px-2 py-0.5 rounded text-[11px] font-semibold bg-card border", PRIORITY_TEXT_CLASSES[priority] ?? "text-slate-400 border-slate-400/20")}>
+      {priority}
+    </span>
+  );
+}
+
+const CASE_STATUS_CLASSES: Record<string, string> = {
+  active:   "bg-emerald-950 text-emerald-400",
+  draft:    "bg-card text-slate-400",
+  inactive: "bg-amber-950/30 text-amber-400",
+};
+
+function CaseStatusBadge({ status }: { status: string }) {
+  return (
+    <span className={cn("px-2 py-0.5 rounded text-[11px] font-semibold", CASE_STATUS_CLASSES[status] ?? "bg-card text-slate-400")}>
+      {status}
+    </span>
+  );
+}
+
+// Result status uses dynamic bg tint — keeping computed style for the transparent background
+const RESULT_STATUS_COLORS: Record<string, string> = {
   pass:    "#22c55e",
   fail:    "#ef4444",
   blocked: "#f59e0b",
@@ -30,61 +74,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "#374151",
 };
 
-// ── Badges ────────────────────────────────────────────────────────────────────
-
-const RUN_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  pending:  { bg: "#1a1a1a", color: "#888" },
-  active:   { bg: "#0a1f3d", color: "#60a5fa" },
-  complete: { bg: "#0a3d0a", color: "#4ade80" },
-  done:     { bg: "#0a3d0a", color: "#4ade80" },
-  failed:   { bg: "#2d1414", color: "#f87171" },
-};
-
-function RunStatusBadge({ status }: { status: string }) {
-  const { bg, color } = RUN_STATUS_COLORS[status] ?? { bg: "#1a1a1a", color: "#888" };
-  return (
-    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color }}>
-      {status}
-    </span>
-  );
-}
-
-const PRIORITY_COLORS: Record<string, string> = {
-  P1: "#ef4444",
-  P2: "#f59e0b",
-  P3: "#60a5fa",
-  P4: "#888",
-};
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const color = PRIORITY_COLORS[priority] ?? "#888";
-  return (
-    <span style={{
-      padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
-      background: "#1a1a1a", color, border: `1px solid ${color}33`,
-    }}>
-      {priority}
-    </span>
-  );
-}
-
-const CASE_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  active:   { bg: "#0a3d0a", color: "#4ade80" },
-  draft:    { bg: "#1a1a1a", color: "#888" },
-  inactive: { bg: "#2d1a00", color: "#f59e0b" },
-};
-
-function CaseStatusBadge({ status }: { status: string }) {
-  const { bg, color } = CASE_STATUS_COLORS[status] ?? { bg: "#1a1a1a", color: "#888" };
-  return (
-    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, background: bg, color }}>
-      {status}
-    </span>
-  );
-}
-
 function ResultStatusBadge({ status }: { status: string }) {
-  const color = STATUS_COLORS[status] ?? "#555";
+  const color = RESULT_STATUS_COLORS[status] ?? "#555";
   return (
     <span style={{
       padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600,
@@ -137,7 +128,6 @@ function MyTasksContent() {
   const [error, setError]     = useState<string | null>(null);
   const [projectId, setProjectId] = useState<string | null>(null);
 
-  // Inline execution state
   const [expandedRunId, setExpandedRunId]   = useState<string | null>(null);
   const [runDetails, setRunDetails]         = useState<Record<string, any>>({});
   const [savingResult, setSavingResult]     = useState<string | null>(null);
@@ -145,21 +135,13 @@ function MyTasksContent() {
 
   useEffect(() => {
     if (!token) return;
-
     const userId = decodeUserId(token);
     const pid = getActiveProjectId();
     setProjectId(pid);
-
-    if (!pid || !userId) {
-      setLoading(false);
-      return;
-    }
-
+    if (!pid || !userId) { setLoading(false); return; }
     setLoading(true);
     setError(null);
-
     const headers = { Authorization: `Bearer ${token}` };
-
     Promise.all([
       fetch(`${BASE_URL}/test-runs?assignedTo=${userId}&projectId=${pid}`, { headers }),
       fetch(`${BASE_URL}/test-cases?assignedTo=${userId}&projectId=${pid}`, { headers }),
@@ -176,13 +158,9 @@ function MyTasksContent() {
   }, []);
 
   async function handleExpandRun(runId: string) {
-    if (expandedRunId === runId) {
-      setExpandedRunId(null);
-      return;
-    }
+    if (expandedRunId === runId) { setExpandedRunId(null); return; }
     setExpandedRunId(runId);
-    if (runDetails[runId]) return; // already loaded
-
+    if (runDetails[runId]) return;
     const res = await fetch(`${BASE_URL}/test-runs/${runId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -194,7 +172,7 @@ function MyTasksContent() {
     const noteText = notes[resultId];
     setSavingResult(resultId);
     try {
-      await updateTestResult(runId, resultId, status, noteText, token);
+      await updateTestResult(runId, resultId, status, noteText, token, projectId ?? undefined);
       setRunDetails((prev) => ({
         ...prev,
         [runId]: {
@@ -209,16 +187,15 @@ function MyTasksContent() {
     }
   }
 
-  // ── No project banner ──────────────────────────────────────────────────────
   if (!projectId && !loading) {
     return (
-      <div style={styles.page}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>My Tasks</h1>
+      <div className="min-h-screen bg-background px-8 py-12 flex flex-col gap-6">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <h1 className="m-0 text-[26px] font-bold text-foreground">My Tasks</h1>
         </div>
-        <div style={styles.warningBanner}>
+        <div className="bg-amber-950/20 border border-amber-700 rounded-md px-4 py-3.5 text-amber-400 text-sm flex items-center justify-between gap-4">
           <span>Select a project to view your tasks.</span>
-          <Link href="/projects" style={{ color: "#f59e0b", textDecoration: "underline", fontSize: 13 }}>
+          <Link href="/projects" className="text-amber-400 underline text-[13px]">
             Select project →
           </Link>
         </div>
@@ -228,92 +205,89 @@ function MyTasksContent() {
 
   if (loading) {
     return (
-      <div style={styles.page}>
-        <p style={{ color: "#666", fontSize: 14 }}>Loading…</p>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <p className="text-slate-500 text-sm">Loading…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={styles.page}>
-        <div style={styles.errorBox}>{error}</div>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <div className="bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]">{error}</div>
       </div>
     );
   }
 
   return (
-    <div style={styles.page}>
+    <div className="min-h-screen bg-background px-8 py-12 flex flex-col gap-6">
 
       {/* Header */}
-      <div style={styles.header}>
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 style={styles.title}>My Tasks</h1>
+          <h1 className="m-0 text-[26px] font-bold text-foreground">My Tasks</h1>
           {user?.email && (
-            <p style={styles.subtitle}>Assigned to <span style={{ color: "#aaa" }}>{user.email}</span></p>
+            <p className="mt-1.5 mb-0 text-[13px] text-slate-500">
+              Assigned to <span className="text-muted-foreground">{user.email}</span>
+            </p>
           )}
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <SummaryPill label="Runs"  count={runs.length}  color="#60a5fa" />
-          <SummaryPill label="Cases" count={cases.length} color="#4ade80" />
+        <div className="flex gap-2.5">
+          <SummaryPill label="Runs"  count={runs.length}  colorClass="text-blue-400" />
+          <SummaryPill label="Cases" count={cases.length} colorClass="text-emerald-400" />
         </div>
       </div>
 
-      {/* ── SECTION 1: My Runs ──────────────────────────────────────────────── */}
-      <div style={styles.card}>
-        <div style={styles.sectionTitle}>My Runs</div>
+      {/* ── SECTION 1: My Runs ────────────────────────────────────────────── */}
+      <div className="bg-card border border-slate-800 rounded-xl p-6">
+        <div className="text-sm font-semibold text-foreground mb-4">My Runs</div>
         {runs.length === 0 ? (
-          <p style={styles.emptyText}>No runs assigned to you yet.</p>
+          <p className="text-[13px] text-slate-500 m-0">No runs assigned to you yet.</p>
         ) : (
-          <table style={styles.table}>
+          <table className="w-full border-collapse">
             <thead>
               <tr>
                 {["Run Name", "Environment", "Status", "Cases", "Created", "Actions"].map((h) => (
-                  <th key={h} style={styles.th}>{h}</th>
+                  <th key={h} className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-3 py-2 border-b border-slate-800">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {runs.map((run) => (
                 <>
-                  <tr key={run.id} style={{ borderBottom: expandedRunId === run.id ? "none" : "1px solid #1a1a1a" }}>
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: "#eee", fontWeight: 500 }}>{run.name}</span>
+                  <tr key={run.id} className={expandedRunId === run.id ? "" : "border-b border-slate-900"}>
+                    <td className={tdClass}>
+                      <span className="text-[13px] text-foreground font-medium">{run.name}</span>
                     </td>
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: "#888" }}>{run.environment}</span>
+                    <td className={tdClass}>
+                      <span className="text-[13px] text-slate-400">{run.environment}</span>
                     </td>
-                    <td style={styles.td}>
-                      <RunStatusBadge status={run.status} />
+                    <td className={tdClass}><RunStatusBadge status={run.status} /></td>
+                    <td className={tdClass}>
+                      <span className="text-[13px] text-slate-400">{run.results?.length ?? 0}</span>
                     </td>
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: "#888" }}>{run.results?.length ?? 0}</span>
-                    </td>
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 12, color: "#555" }}>
+                    <td className={tdClass}>
+                      <span className="text-xs text-slate-500">
                         {new Date(run.createdAt).toLocaleDateString(undefined, {
                           year: "numeric", month: "short", day: "numeric",
                         })}
                       </span>
                     </td>
-                    <td style={{ ...styles.td, display: "flex", gap: 8 }}>
+                    <td className={cn(tdClass, "flex gap-2")}>
                       {can("execute", "test_run") && (
                         <button
                           onClick={() => handleExpandRun(run.id)}
-                          style={{
-                            ...styles.actionBtn,
-                            background: expandedRunId === run.id ? "#1e3a5f" : "transparent",
-                            color:      expandedRunId === run.id ? "#60a5fa" : "#eee",
-                            border:     expandedRunId === run.id ? "1px solid #2563eb44" : "1px solid #333",
-                          }}
+                          className={cn(
+                            actionBtnClass,
+                            expandedRunId === run.id
+                              ? "bg-blue-950/40 text-blue-400 border-blue-800/30"
+                              : "bg-transparent text-foreground border-border"
+                          )}
                         >
                           {expandedRunId === run.id ? "Collapse" : "Execute"}
                         </button>
                       )}
-                      <button
-                        onClick={() => router.push(`/runs/${run.id}`)}
-                        style={styles.actionBtn}
-                      >
+                      <button onClick={() => router.push(`/runs/${run.id}`)} className={actionBtnClass}>
                         Open Run
                       </button>
                     </td>
@@ -322,13 +296,10 @@ function MyTasksContent() {
                   {/* Inline execution panel */}
                   {expandedRunId === run.id && can("execute", "test_run") && (
                     <tr key={`${run.id}-panel`}>
-                      <td colSpan={6} style={{ padding: 0 }}>
-                        <div style={{
-                          background: "#111", border: "1px solid #2a2a2a",
-                          borderRadius: 8, margin: "0 12px 16px", padding: 20,
-                        }}>
+                      <td colSpan={6} className="p-0">
+                        <div className="bg-background border border-slate-800 rounded-lg mx-3 mb-4 p-5">
                           {!runDetails[run.id] ? (
-                            <p style={{ color: "#666", fontSize: 13 }}>Loading…</p>
+                            <p className="text-slate-500 text-[13px]">Loading…</p>
                           ) : (
                             <>
                               {/* Progress bar */}
@@ -337,70 +308,65 @@ function MyTasksContent() {
                                 const done = results.filter((r: any) => r.status !== "pending").length;
                                 const pct = results.length ? Math.round((done / results.length) * 100) : 0;
                                 return (
-                                  <div style={{ marginBottom: 16 }}>
-                                    <div style={{
-                                      display: "flex", justifyContent: "space-between",
-                                      marginBottom: 6, fontSize: 12, color: "#666",
-                                    }}>
+                                  <div className="mb-4">
+                                    <div className="flex justify-between mb-1.5 text-xs text-slate-500">
                                       <span>Progress</span>
                                       <span>{done} of {results.length} executed</span>
                                     </div>
-                                    <div style={{ height: 4, background: "#2a2a2a", borderRadius: 2 }}>
-                                      <div style={{
-                                        height: "100%", borderRadius: 2,
-                                        background: pct === 100 ? "#22c55e" : "#2563eb",
-                                        width: `${pct}%`, transition: "width 0.3s",
-                                      }} />
+                                    <div className="h-1 bg-slate-800 rounded-sm">
+                                      <div
+                                        className={cn("h-full rounded-sm transition-[width] duration-300", pct === 100 ? "bg-emerald-500" : "bg-blue-500")}
+                                        style={{ width: `${pct}%` }}
+                                      />
                                     </div>
                                   </div>
                                 );
                               })()}
 
                               {/* Results table */}
-                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                              <table className="w-full border-collapse text-[13px]">
                                 <thead>
-                                  <tr style={{ borderBottom: "1px solid #2a2a2a" }}>
+                                  <tr className="border-b border-slate-800">
                                     {["tcId", "Title", "Status", "Result", "Notes"].map((h) => (
-                                      <th key={h} style={{
-                                        textAlign: "left", padding: "6px 10px",
-                                        fontSize: 11, color: "#555", textTransform: "uppercase",
-                                      }}>{h}</th>
+                                      <th key={h} className="text-left px-2.5 py-1.5 text-[11px] text-slate-500 uppercase">{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {(runDetails[run.id]?.results ?? []).map((result: any) => (
-                                    <tr key={result.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
-                                      <td style={{ padding: "10px", color: "#555", fontFamily: "monospace", fontSize: 11 }}>
+                                    <tr key={result.id} className="border-b border-slate-900">
+                                      <td className="p-2.5 text-slate-500 font-mono text-[11px]">
                                         {result.testCase?.tcId ?? "—"}
                                       </td>
-                                      <td style={{ padding: "10px", color: "#eee", fontWeight: 500 }}>
+                                      <td className="p-2.5 text-foreground font-medium">
                                         {result.testCase?.title ?? "—"}
                                       </td>
-                                      <td style={{ padding: "10px" }}>
+                                      <td className="p-2.5">
                                         <ResultStatusBadge status={result.status} />
                                       </td>
-                                      <td style={{ padding: "10px" }}>
-                                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                          {["pass", "fail", "blocked", "skip"].map((s) => (
-                                            <button
-                                              key={s}
-                                              disabled={savingResult === result.id}
-                                              onClick={() => handleSetResult(run.id, result.id, s)}
-                                              style={{
-                                                padding: "3px 10px", borderRadius: 4, fontSize: 11,
-                                                fontWeight: 600, cursor: "pointer", border: "none",
-                                                background: result.status === s ? STATUS_COLORS[s] : "#2a2a2a",
-                                                color:      result.status === s ? "#fff" : "#888",
-                                                opacity:    savingResult === result.id ? 0.5 : 1,
-                                              }}
-                                            >
-                                              {s.charAt(0).toUpperCase() + s.slice(1)}
-                                            </button>
-                                          ))}
+                                      <td className="p-2.5">
+                                        <div className="flex gap-1.5 flex-wrap">
+                                          {["pass", "fail", "blocked", "skip"].map((s) => {
+                                            const isActive = result.status === s;
+                                            const color = RESULT_STATUS_COLORS[s] ?? "#555";
+                                            return (
+                                              <button
+                                                key={s}
+                                                disabled={savingResult === result.id}
+                                                onClick={() => handleSetResult(run.id, result.id, s)}
+                                                style={isActive ? { background: color, border: `1px solid ${color}` } : undefined}
+                                                className={cn(
+                                                  "px-2.5 py-0.5 rounded text-[11px] font-semibold cursor-pointer border transition-colors disabled:opacity-50",
+                                                  isActive ? "text-white" : "bg-slate-800 text-slate-400 border-slate-700 hover:text-foreground"
+                                                )}
+                                              >
+                                                {s.charAt(0).toUpperCase() + s.slice(1)}
+                                              </button>
+                                            );
+                                          })}
                                         </div>
                                       </td>
-                                      <td style={{ padding: "10px" }}>
+                                      <td className="p-2.5">
                                         {(result.status === "fail" || result.status === "blocked") && (
                                           <textarea
                                             value={notes[result.id] ?? result.notes ?? ""}
@@ -408,12 +374,7 @@ function MyTasksContent() {
                                             onBlur={() => handleSetResult(run.id, result.id, result.status)}
                                             placeholder="Add notes…"
                                             rows={2}
-                                            style={{
-                                              background: "#1a1a1a", border: "1px solid #333",
-                                              borderRadius: 4, color: "#eee", fontSize: 12,
-                                              padding: "6px 8px", width: "100%",
-                                              resize: "vertical", fontFamily: "inherit",
-                                            }}
+                                            className="bg-card border border-border rounded text-foreground text-xs px-2 py-1.5 w-full resize-y font-[inherit] focus:outline-none focus:border-primary transition-colors"
                                           />
                                         )}
                                       </td>
@@ -422,15 +383,10 @@ function MyTasksContent() {
                                 </tbody>
                               </table>
 
-                              {/* Full view link */}
-                              <div style={{ marginTop: 12, textAlign: "right" }}>
+                              <div className="mt-3 text-right">
                                 <button
                                   onClick={() => router.push(`/runs/${run.id}/execute`)}
-                                  style={{
-                                    background: "transparent", border: "none",
-                                    color: "#60a5fa", fontSize: 12, cursor: "pointer",
-                                    textDecoration: "underline",
-                                  }}
+                                  className="bg-transparent border-none text-blue-400 text-xs cursor-pointer underline hover:text-blue-300 transition-colors"
                                 >
                                   Open full execution view →
                                 </button>
@@ -448,49 +404,38 @@ function MyTasksContent() {
         )}
       </div>
 
-      {/* ── SECTION 2: My Cases ─────────────────────────────────────────────── */}
-      <div style={styles.card}>
-        <div style={styles.sectionTitle}>My Cases</div>
+      {/* ── SECTION 2: My Cases ───────────────────────────────────────────── */}
+      <div className="bg-card border border-slate-800 rounded-xl p-6">
+        <div className="text-sm font-semibold text-foreground mb-4">My Cases</div>
         {cases.length === 0 ? (
-          <p style={styles.emptyText}>No test cases assigned to you yet.</p>
+          <p className="text-[13px] text-slate-500 m-0">No test cases assigned to you yet.</p>
         ) : (
-          <table style={styles.table}>
+          <table className="w-full border-collapse">
             <thead>
               <tr>
                 {["tcId", "Title", "Suite", "Priority", "Status", "Action"].map((h) => (
-                  <th key={h} style={styles.th}>{h}</th>
+                  <th key={h} className="text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-3 py-2 border-b border-slate-800">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {cases.map((tc) => (
-                <tr key={tc.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
-                  <td style={styles.td}>
-                    <span style={{
-                      fontFamily: "monospace", fontSize: 11, color: "#555",
-                      background: "#1a1a1a", border: "1px solid #2a2a2a",
-                      borderRadius: 3, padding: "2px 6px",
-                    }}>
+                <tr key={tc.id} className="border-b border-slate-900">
+                  <td className={tdClass}>
+                    <span className="font-mono text-[11px] text-slate-500 bg-card border border-slate-800 rounded px-1.5 py-0.5">
                       {tc.tcId || "—"}
                     </span>
                   </td>
-                  <td style={styles.td}>
-                    <span style={{ fontSize: 13, color: "#eee", fontWeight: 500 }}>{tc.title}</span>
+                  <td className={tdClass}>
+                    <span className="text-[13px] text-foreground font-medium">{tc.title}</span>
                   </td>
-                  <td style={styles.td}>
-                    <span style={{ fontSize: 12, color: "#555" }}>{tc.suite?.name ?? "—"}</span>
+                  <td className={tdClass}>
+                    <span className="text-xs text-slate-500">{tc.suite?.name ?? "—"}</span>
                   </td>
-                  <td style={styles.td}>
-                    <PriorityBadge priority={tc.priority} />
-                  </td>
-                  <td style={styles.td}>
-                    <CaseStatusBadge status={tc.status} />
-                  </td>
-                  <td style={styles.td}>
-                    <button
-                      onClick={() => router.push(`/test-cases/${tc.id}`)}
-                      style={styles.actionBtn}
-                    >
+                  <td className={tdClass}><PriorityBadge priority={tc.priority} /></td>
+                  <td className={tdClass}><CaseStatusBadge status={tc.status} /></td>
+                  <td className={tdClass}>
+                    <button onClick={() => router.push(`/test-cases/${tc.id}`)} className={actionBtnClass}>
                       View
                     </button>
                   </td>
@@ -500,117 +445,22 @@ function MyTasksContent() {
           </table>
         )}
       </div>
-
     </div>
   );
 }
 
 // ── Summary Pill ──────────────────────────────────────────────────────────────
 
-function SummaryPill({ label, count, color }: { label: string; count: number; color: string }) {
+function SummaryPill({ label, count, colorClass }: { label: string; count: number; colorClass: string }) {
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: "6px 14px", background: "#1a1a1a",
-      border: "1px solid #2a2a2a", borderRadius: 20, fontSize: 13,
-    }}>
-      <span style={{ color: "#666" }}>{label}</span>
-      <span style={{ fontWeight: 700, color }}>{count}</span>
+    <div className="flex items-center gap-2 px-3.5 py-1.5 bg-card border border-slate-800 rounded-full text-[13px]">
+      <span className="text-slate-500">{label}</span>
+      <span className={cn("font-bold", colorClass)}>{count}</span>
     </div>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Class constants ────────────────────────────────────────────────────────────
 
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    padding: "48px 32px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 24,
-  },
-  header: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: 16,
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    color: "#666",
-  },
-  card: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    padding: 24,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#eee",
-    marginBottom: 16,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-  th: {
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    padding: "8px 12px",
-    borderBottom: "1px solid #2a2a2a",
-  },
-  td: {
-    padding: "11px 12px",
-    verticalAlign: "middle",
-  },
-  actionBtn: {
-    background: "transparent",
-    border: "1px solid #333",
-    color: "#eee",
-    padding: "5px 12px",
-    borderRadius: 6,
-    fontSize: 12,
-    cursor: "pointer",
-  },
-  emptyText: {
-    fontSize: 13,
-    color: "#555",
-    margin: 0,
-  },
-  warningBanner: {
-    background: "#1c1208",
-    border: "1px solid #78350f",
-    borderRadius: 6,
-    padding: "14px 18px",
-    color: "#f59e0b",
-    fontSize: 14,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const tdClass = "px-3 py-[11px] align-middle";
+const actionBtnClass = "bg-transparent border border-border text-foreground px-3 py-1 rounded-md text-xs cursor-pointer hover:bg-slate-700/40 transition-colors";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { getTestCaseHistory, restoreTestCaseVersion, type HistoryEntry, type TestCase } from "../../../lib/api";
 
 function timeAgo(iso: string): string {
@@ -15,25 +16,15 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
-const CHANGE_TYPE_STYLE: Record<string, { bg: string; fg: string }> = {
-  manual:  { bg: "#0f1f3b", fg: "#60a5fa" },
-  ai:      { bg: "#1a0f3b", fg: "#a78bfa" },
-  restore: { bg: "#0f2a1a", fg: "#4ade80" },
+const CHANGE_TYPE_CLASSES: Record<string, string> = {
+  manual:  "bg-blue-950/40 text-blue-400",
+  ai:      "bg-purple-950/40 text-purple-400",
+  restore: "bg-emerald-950/40 text-emerald-400",
 };
 
 function ChangeTypeBadge({ type }: { type: string }) {
-  const { bg, fg } = CHANGE_TYPE_STYLE[type] ?? { bg: "#222", fg: "#888" };
   return (
-    <span style={{
-      fontSize: 10,
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: "0.06em",
-      padding: "2px 7px",
-      borderRadius: 4,
-      background: bg,
-      color: fg,
-    }}>
+    <span className={cn("text-[10px] font-bold uppercase tracking-[0.06em] px-1.5 py-0.5 rounded", CHANGE_TYPE_CLASSES[type] ?? "bg-slate-800 text-slate-400")}>
       {type}
     </span>
   );
@@ -61,30 +52,22 @@ function SnapshotDetail({ snap }: { snap: TestCase }) {
   ];
 
   return (
-    <div style={{
-      marginTop: 10,
-      padding: "10px 12px",
-      background: "#0d0d0d",
-      borderRadius: 6,
-      border: "1px solid #1e1e1e",
-      fontSize: 12,
-      display: "grid",
-      gridTemplateColumns: "90px 1fr",
-      gap: "5px 10px",
-      color: "#aaa",
-    }}>
+    <div className="mt-2.5 px-3 py-2.5 bg-[#0d0d0d] rounded-md border border-slate-900 text-xs grid gap-y-1 gap-x-2.5 text-muted-foreground"
+      style={{ gridTemplateColumns: "90px 1fr" }}>
       {fields.map(([label, value]) =>
         value ? (
-          <><span key={`l-${label}`} style={{ color: "#555" }}>{label}</span>
-          <span key={`v-${label}`} style={{ color: "#ccc", wordBreak: "break-word" }}>{value}</span></>
+          <>
+            <span key={`l-${label}`} className="text-slate-600">{label}</span>
+            <span key={`v-${label}`} className="text-slate-300 break-words">{value}</span>
+          </>
         ) : null
       )}
       {stepsArr && (
         <>
-          <span style={{ color: "#555", alignSelf: "start", paddingTop: 2 }}>Steps</span>
-          <ol style={{ margin: 0, paddingLeft: 18, color: "#ccc", display: "flex", flexDirection: "column", gap: 3 }}>
+          <span className="text-slate-600 self-start pt-0.5">Steps</span>
+          <ol className="m-0 pl-4 text-slate-300 flex flex-col gap-0.5">
             {stepsArr.map((s, i) => (
-              <li key={i} style={{ wordBreak: "break-word" }}>{s}</li>
+              <li key={i} className="break-words">{s}</li>
             ))}
           </ol>
         </>
@@ -121,7 +104,6 @@ export default function HistoryPanel({ testCaseId, onRestore }: Props) {
     try {
       const restored = await restoreTestCaseVersion(testCaseId, entry.id);
       setRestoreMsg(`Restored to v${entry.version}`);
-      // Re-fetch history so the new "restore" entry appears
       const updated = await getTestCaseHistory(testCaseId);
       setHistory(updated);
       onRestore(restored);
@@ -132,17 +114,11 @@ export default function HistoryPanel({ testCaseId, onRestore }: Props) {
     }
   }
 
-  if (loading) {
-    return <p style={{ color: "#555", fontSize: 13, padding: "16px 0" }}>Loading history…</p>;
-  }
-
-  if (error) {
-    return <p style={{ color: "#f87171", fontSize: 13, padding: "16px 0" }}>{error}</p>;
-  }
-
+  if (loading) return <p className="text-slate-500 text-[13px] py-4">Loading history…</p>;
+  if (error)   return <p className="text-red-400 text-[13px] py-4">{error}</p>;
   if (history.length === 0) {
     return (
-      <p style={{ color: "#555", fontSize: 13, padding: "16px 0" }}>
+      <p className="text-slate-500 text-[13px] py-4">
         No history yet — history is saved each time this test case is edited.
       </p>
     );
@@ -151,20 +127,12 @@ export default function HistoryPanel({ testCaseId, onRestore }: Props) {
   return (
     <div>
       {restoreMsg && (
-        <div style={{
-          marginBottom: 12,
-          padding: "8px 14px",
-          background: "#0f2a1a",
-          border: "1px solid #166534",
-          borderRadius: 6,
-          color: "#4ade80",
-          fontSize: 13,
-        }}>
+        <div className="mb-3 px-3.5 py-2 bg-emerald-950/30 border border-emerald-800 rounded-md text-emerald-400 text-[13px]">
           {restoreMsg}
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div className="flex flex-col gap-0.5">
         {history.map((entry) => {
           const isExpanded  = expanded === entry.id;
           const isRestoring = restoring === entry.id;
@@ -172,72 +140,45 @@ export default function HistoryPanel({ testCaseId, onRestore }: Props) {
           return (
             <div
               key={entry.id}
-              style={{
-                border: "1px solid #1e1e1e",
-                borderRadius: 6,
-                overflow: "hidden",
-                background: isExpanded ? "#111" : "transparent",
-              }}
+              className={cn("border border-slate-900 rounded-md overflow-hidden", isExpanded ? "bg-[#111]" : "bg-transparent")}
             >
               {/* Row header */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "9px 12px",
-                cursor: "pointer",
-              }}
+              <div
+                className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
                 onClick={() => setExpanded(isExpanded ? null : entry.id)}
               >
-                {/* Version pill */}
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#eee",
-                  background: "#222",
-                  border: "1px solid #333",
-                  borderRadius: 4,
-                  padding: "1px 8px",
-                  flexShrink: 0,
-                }}>
+                <span className="text-[11px] font-bold text-foreground bg-slate-800 border border-border rounded px-2 py-px shrink-0">
                   v{entry.version}
                 </span>
 
                 <ChangeTypeBadge type={entry.changeType} />
 
-                <span style={{ fontSize: 12, color: "#555", flex: 1, minWidth: 0 }}>
+                <span className="text-xs text-slate-500 flex-1 min-w-0">
                   {entry.changedBy
-                    ? <span style={{ color: "#777" }}>{entry.changedBy.slice(0, 8)}…</span>
+                    ? <span className="text-slate-400">{entry.changedBy.slice(0, 8)}…</span>
                     : <span>—</span>}
                 </span>
 
-                <span style={{ fontSize: 11, color: "#444", whiteSpace: "nowrap" }}>
+                <span className="text-[11px] text-slate-600 whitespace-nowrap">
                   {timeAgo(entry.changedAt)}
                 </span>
 
-                <span style={{ fontSize: 11, color: "#444", marginLeft: 4 }}>
+                <span className="text-[11px] text-slate-600 ml-1">
                   {isExpanded ? "▲" : "▼"}
                 </span>
               </div>
 
               {/* Expanded snapshot + restore */}
               {isExpanded && (
-                <div style={{ padding: "0 12px 12px" }}>
+                <div className="px-3 pb-3">
                   <SnapshotDetail snap={entry.snapshot} />
                   <button
                     onClick={() => handleRestore(entry)}
                     disabled={!!restoring}
-                    style={{
-                      marginTop: 10,
-                      background: "transparent",
-                      border: "1px solid #166534",
-                      color: isRestoring ? "#555" : "#4ade80",
-                      borderRadius: 4,
-                      padding: "5px 14px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: restoring ? "not-allowed" : "pointer",
-                    }}
+                    className={cn(
+                      "mt-2.5 bg-transparent border border-emerald-800 rounded px-3.5 py-1 text-xs font-semibold transition-colors",
+                      isRestoring ? "text-slate-500 cursor-not-allowed" : "text-emerald-400 cursor-pointer hover:bg-emerald-950/30"
+                    )}
                   >
                     {isRestoring ? "Restoring…" : `↩ Restore v${entry.version}`}
                   </button>

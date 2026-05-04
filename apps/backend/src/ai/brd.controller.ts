@@ -174,9 +174,13 @@ export class BrdController {
     const allCreated: any[] = [];
     const moduleResults: { module: string; suiteId: string; count: number }[] = [];
     const brdT0 = Date.now();
+    let totalTokens = 0;
 
-    const allResults = await Promise.allSettled(
-      modules.map(async (mod) => {
+    // Modules run sequentially — parallel AI calls saturate the rate-limit
+    // budget immediately, causing all-but-one chunks to fail with 429/timeout,
+    // which means suites get created but receive 0 test cases.
+    for (const mod of modules) {
+      try {
         // 1. Create suite for this module
         const moduleSuite = await this.prisma.testSuite.create({
           data: {
@@ -197,9 +201,9 @@ export class BrdController {
 
         console.log(`[BRD] Module "${mod.name}": ${casesForModule} cases across ${numChunks} chunk(s)`);
 
-        // 3. Run chunks sequentially within each module to avoid rate limits
-        // (modules themselves still run in parallel via the outer allSettled)
-        const chunkResults: PromiseSettledResult<{ cases: any[]; tokens?: number }>[] = [];
+        // 3. Run chunks sequentially to avoid rate limits
+        const moduleCases: any[] = [];
+        let moduleTokens = 0;
         for (const chunkCount of chunkSizes) {
           try {
             const chunkPrompt = this.generationContext.buildModuleTestCasePrompt(
@@ -212,25 +216,14 @@ export class BrdController {
               chunkPrompt,
               createdBy ?? undefined,
             );
-            chunkResults.push({ status: "fulfilled", value: result });
+            moduleCases.push(...result.cases);
+            moduleTokens += (result.tokens ?? 0);
           } catch (err) {
-            chunkResults.push({ status: "rejected", reason: err });
+            console.error(`[BRD] Chunk failed for module "${mod.name}":`, err);
           }
         }
 
-        // 4. Merge chunk results
-        let moduleTokens = 0;
-        const moduleCases: any[] = [];
-        for (const chunkResult of chunkResults) {
-          if (chunkResult.status === "fulfilled") {
-            moduleCases.push(...chunkResult.value.cases);
-            moduleTokens += (chunkResult.value.tokens ?? 0);
-          } else {
-            console.error(`[BRD] Chunk failed for module ${mod.name}:`, chunkResult.reason);
-          }
-        }
-
-        // 5. Save test cases sequentially (preserves tcId ordering)
+        // 4. Save test cases sequentially (preserves tcId ordering)
         const created: any[] = [];
         for (const tc of moduleCases) {
           const saved = await this.testCaseService.create({
@@ -258,20 +251,12 @@ export class BrdController {
 
         allCreated.push(...created);
         moduleResults.push({ module: mod.name, suiteId: moduleSuite.id, count: created.length });
-
-        return { tokens: moduleTokens, count: created.length };
-      }),
-    );
-
-    // Aggregate tokens and log any module-level failures
-    const totalTokens = allResults.reduce((sum, r) =>
-      r.status === "fulfilled" ? sum + (r.value?.tokens ?? 0) : sum, 0,
-    );
-    allResults.forEach((result, i) => {
-      if (result.status === "rejected") {
-        console.error(`[BRD] Module "${modules[i]?.name}" failed:`, result.reason);
+        totalTokens += moduleTokens;
+        console.log(`[BRD] Module "${mod.name}" done — ${created.length} cases saved to suite ${moduleSuite.id}`);
+      } catch (err) {
+        console.error(`[BRD] Module "${mod.name}" failed:`, err);
       }
-    });
+    }
 
     this.prisma.aiGenerationLog.create({
       data: { provider: "brd-upload-modules", latencyMs: Date.now() - brdT0, caseCount: allCreated.length, promptTokens: totalTokens || null, fallbackFrom: null },

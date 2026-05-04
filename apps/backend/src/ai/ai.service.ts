@@ -6,7 +6,6 @@ import type { AIProvider } from "./providers/interface";
 import { ClaudeService } from "./providers/claude.service";
 import { OpenAiService } from "./providers/openai.service";
 import { GeminiService, isGeminiRateLimitError } from "./providers/gemini.service";
-import { OpenRouterService } from "./providers/openrouter.service";
 import { GroqService } from "./providers/groq.service";
 import { AiGenerationContext, buildSystemPrompt } from "./ai-generation.context";
 import { PrismaService } from "../prisma/prisma.service";
@@ -89,12 +88,11 @@ export class AiService {
     claude: ClaudeService,
     openai: OpenAiService,
     private readonly gemini: GeminiService,
-    private readonly openrouter: OpenRouterService,
     private readonly groq: GroqService,
     private readonly generationContext: AiGenerationContext,
     private readonly prisma: PrismaService,
   ) {
-    this.registry = { claude, openai, gemini, openrouter, groq };
+    this.registry = { claude, openai, gemini, groq };
   }
 
   // ── Public entry points ──────────────────────────────────────────────────
@@ -126,18 +124,11 @@ export class AiService {
     //   1. Primary provider (user-requested or default gemini-2.5-flash)
     //   2. gemini-2.0-flash        — separate quota bucket
     //   3. gemini-2.0-flash-lite   — lightest, highest rate limits
-    //   4-7. OpenRouter free-tier models (if OPENROUTER key set)
-    //   8. OpenRouter google/gemini-2.0-flash-exp:free — Gemini on different infra (if key set)
-
+    //   4. gemini-1.5-flash        — stable fallback
     const hasGroqKey = !!process.env.GROQ_API_KEY;
-    const hasOpenRouterKey = !!(process.env.AI_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY);
 
     // Startup log — shows which providers are active this run
-    const activeProviders = [
-      hasGroqKey ? "Groq" : null,
-      "Gemini",
-      hasOpenRouterKey ? "OpenRouter" : null,
-    ].filter(Boolean).join(", ");
+    const activeProviders = [hasGroqKey ? "Groq" : null, "Gemini"].filter(Boolean).join(", ");
     console.log(`[AI] Active providers: ${activeProviders}`);
 
     const chain: FallbackStep[] = [];
@@ -155,49 +146,15 @@ export class AiService {
     // User-requested provider (or default gemini-2.5-flash)
     chain.push({ label: `${provider ?? "gemini"}/${primaryModel ?? "default"} (${hasGroqKey ? "fallback 1" : "primary"})`, svc: primarySvc, model: primaryModel, apiKey: undefined });
 
-    // DEPRECATED (404 on v1beta API — do not add back):
-    //   gemini-1.5-flash, gemini-1.5-pro, gemini-1.0-pro
     const geminiModels: Array<{ model: string; label: string }> = [
       { model: "gemini-2.0-flash",      label: "gemini/gemini-2.0-flash (separate quota bucket)" },
       { model: "gemini-2.0-flash-lite", label: "gemini/gemini-2.0-flash-lite (lightest, highest rate limits)" },
+      { model: "gemini-1.5-flash",      label: "gemini/gemini-1.5-flash (stable fallback)" },
     ];
 
     for (const { model: m, label } of geminiModels) {
       if (primarySvc === this.gemini && primaryModel === m) continue;
       chain.push({ label, svc: this.gemini, model: m, apiKey: undefined });
-    }
-
-    // OpenRouter steps — only added when a key is available so we don't waste
-    // a chain slot on a call that will immediately throw a missing-key error.
-    if (hasOpenRouterKey) {
-      const openRouterFreeTierModels = [
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "google/gemma-3-1b-it:free",
-      ];
-
-      const modelsToAdd =
-        primarySvc === this.openrouter
-          ? openRouterFreeTierModels.filter((m) => m !== primaryModel)
-          : openRouterFreeTierModels;
-
-      modelsToAdd.forEach((m, idx) => {
-        const fallbackNum = primarySvc !== this.openrouter ? 3 + idx : 1 + idx;
-        chain.push({
-          label: `openrouter/${m} (fallback ${fallbackNum}, free tier)`,
-          svc: this.openrouter,
-          model: m,
-          apiKey: undefined,
-        });
-      });
-
-      // Gemini Flash 1.5 via OpenRouter — same model, different infrastructure,
-      // gives a second path to Gemini when the direct API is overloaded.
-      chain.push({
-        label: "openrouter/google/gemini-2.0-flash-exp:free (Gemini via OpenRouter, final fallback)",
-        svc: this.openrouter,
-        model: "google/gemini-2.0-flash-exp:free",
-        apiKey: undefined,
-      });
     }
 
     console.log(`[AI] Fallback chain (${chain.length} steps):`, chain.map((s) => s.label));
@@ -340,8 +297,7 @@ export class AiService {
 
   // ── Private: build the fallback chain (no context/prompt building) ────────
   private buildChain(): FallbackStep[] {
-    const hasGroqKey       = !!process.env.GROQ_API_KEY;
-    const hasOpenRouterKey = !!(process.env.AI_OPENROUTER_API_KEY ?? process.env.OPENROUTER_API_KEY);
+    const hasGroqKey = !!process.env.GROQ_API_KEY;
 
     const chain: FallbackStep[] = [];
 
@@ -355,19 +311,11 @@ export class AiService {
     }
 
     chain.push(
-      { label: "gemini/gemini-2.5-flash", svc: this.gemini, model: "gemini-2.5-flash", apiKey: undefined },
-      { label: "gemini/gemini-2.0-flash (separate quota bucket)", svc: this.gemini, model: "gemini-2.0-flash", apiKey: undefined },
-      { label: "gemini/gemini-2.0-flash-lite (lightest, highest rate limits)", svc: this.gemini, model: "gemini-2.0-flash-lite", apiKey: undefined },
+      { label: "gemini/gemini-2.5-flash",     svc: this.gemini, model: "gemini-2.5-flash",     apiKey: undefined },
+      { label: "gemini/gemini-2.0-flash",      svc: this.gemini, model: "gemini-2.0-flash",      apiKey: undefined },
+      { label: "gemini/gemini-2.0-flash-lite", svc: this.gemini, model: "gemini-2.0-flash-lite", apiKey: undefined },
+      { label: "gemini/gemini-1.5-flash",      svc: this.gemini, model: "gemini-1.5-flash",      apiKey: undefined },
     );
-
-    if (hasOpenRouterKey) {
-      chain.push({
-        label: "openrouter/google/gemini-2.0-flash-exp:free (Gemini via OpenRouter, final fallback)",
-        svc: this.openrouter,
-        model: "google/gemini-2.0-flash-exp:free",
-        apiKey: undefined,
-      });
-    }
 
     return chain;
   }

@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getTestRun, type TestRun } from "@/lib/api";
@@ -8,9 +9,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 export default function RunPage() {
   const params = useParams();
   const id = params?.id as string;
-  const [run, setRun] = useState<TestRun | null>(null);
+  const [run, setRun]       = useState<TestRun | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError]   = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -22,23 +23,23 @@ export default function RunPage() {
 
   if (loading) return (
     <ProtectedRoute>
-      <main style={{ padding: 32 }}>
-        <p style={{ color: "#888" }}>Loading run...</p>
+      <main className="px-8 py-8">
+        <p className="text-slate-400 text-sm">Loading run...</p>
       </main>
     </ProtectedRoute>
   );
 
   if (error || !run) return (
     <ProtectedRoute>
-      <main style={{ padding: 32 }}>
-        <p style={{ color: "#f87171" }}>Run not found.</p>
+      <main className="px-8 py-8">
+        <p className="text-red-400 text-sm">Run not found.</p>
       </main>
     </ProtectedRoute>
   );
 
   return (
     <ProtectedRoute>
-      <main style={{ padding: 32, minHeight: "100vh" }}>
+      <main className="px-8 py-8 min-h-screen">
         <RunClient initialRun={run} />
       </main>
     </ProtectedRoute>

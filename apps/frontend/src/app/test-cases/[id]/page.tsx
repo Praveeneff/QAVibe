@@ -10,8 +10,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 export default function EditTestCasePage() {
   const { id } = useParams<{ id: string }>();
   const [testCase, setTestCase] = useState<TestCase | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(false);
 
   useEffect(() => {
     getTestCase(id)
@@ -23,8 +23,8 @@ export default function EditTestCasePage() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <main style={{ padding: 32, fontFamily: "sans-serif", color: "#eee", background: "#111", minHeight: "100vh" }}>
-          <div style={{ color: "#888" }}>Loading…</div>
+        <main className="px-8 py-8 min-h-screen">
+          <div className="text-slate-400 text-sm">Loading…</div>
         </main>
       </ProtectedRoute>
     );
@@ -33,8 +33,8 @@ export default function EditTestCasePage() {
   if (error || !testCase) {
     return (
       <ProtectedRoute>
-        <main style={{ padding: 32, fontFamily: "sans-serif", color: "#eee", background: "#111", minHeight: "100vh" }}>
-          <div style={{ color: "#f87171" }}>Test case not found.</div>
+        <main className="px-8 py-8 min-h-screen">
+          <div className="text-red-400 text-sm">Test case not found.</div>
         </main>
       </ProtectedRoute>
     );
@@ -42,13 +42,13 @@ export default function EditTestCasePage() {
 
   return (
     <ProtectedRoute>
-      <main style={{ padding: 32, fontFamily: "sans-serif", color: "#eee", background: "#111", minHeight: "100vh" }}>
-        <div style={{ marginBottom: 20 }}>
-          <Link href="/test-cases" style={{ color: "#0070f3", textDecoration: "none", fontSize: 14 }}>
+      <main className="px-8 py-8 min-h-screen">
+        <div className="mb-5">
+          <Link href="/test-cases" className="text-primary no-underline text-sm hover:underline">
             ← Back to Test Cases
           </Link>
         </div>
-        <h1 style={{ marginBottom: 24 }}>Edit Test Case</h1>
+        <h1 className="mb-6 text-2xl font-bold text-foreground">Edit Test Case</h1>
         <EditTestCaseClient testCase={testCase} />
       </main>
     </ProtectedRoute>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import MembersTab from "./MembersTab";
@@ -35,33 +36,32 @@ function SettingsContent() {
   if (!isAdmin) return null;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="min-h-screen bg-background px-8 py-12">
+      <div className="w-full max-w-[900px] mx-auto">
 
         {/* Header */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={styles.title}>Project Settings</h1>
-          <p style={styles.subtitle}>
+        <div className="mb-8">
+          <h1 className="m-0 text-[26px] font-bold text-foreground">Project Settings</h1>
+          <p className="mt-1.5 mb-0 text-[13px] text-slate-400">
             {activeProject?.name}
             {activeProject?.role && (
-              <span style={{ color: "#555", marginLeft: 6 }}>
-                · {activeProject.role}
-              </span>
+              <span className="text-slate-600 ml-1.5">· {activeProject.role}</span>
             )}
           </p>
         </div>
 
         {/* Tab bar */}
-        <div style={styles.tabBar}>
+        <div className="flex gap-1 border-b border-slate-800">
           {TABS.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              style={{
-                ...styles.tabBtn,
-                color:        activeTab === key ? "#fff"    : "#666",
-                borderBottom: activeTab === key ? "2px solid #2563eb" : "2px solid transparent",
-              }}
+              className={cn(
+                "bg-transparent border-none border-b-2 px-[18px] py-2.5 text-[13px] font-medium cursor-pointer -mb-px transition-colors",
+                activeTab === key
+                  ? "text-foreground border-b-blue-600"
+                  : "text-slate-500 border-b-transparent hover:text-slate-300",
+              )}
             >
               {label}
             </button>
@@ -69,7 +69,7 @@ function SettingsContent() {
         </div>
 
         {/* Tab content */}
-        <div style={{ marginTop: 28 }}>
+        <div className="mt-7">
           {activeTab === "members"      && <MembersTab     projectId={projectId} />}
           {activeTab === "token-limits" && <TokenLimitsTab projectId={projectId} />}
           {activeTab === "token-usage"  && <TokenUsageTab  projectId={projectId} />}
@@ -101,17 +101,13 @@ function PermissionsTab({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     if (!projectId || !token) return;
-
     setLoading(true);
     setError(null);
-
     fetch(`${BASE_URL}/admin/projects/${projectId}/permissions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to load permissions (${res.status})`);
-        }
+        if (!res.ok) throw new Error(`Failed to load permissions (${res.status})`);
         return res.json();
       })
       .then(setPermissions)
@@ -122,27 +118,15 @@ function PermissionsTab({ projectId }: { projectId: string }) {
       .finally(() => setLoading(false));
   }, [projectId, token]);
 
-  async function togglePermission(
-    resource: string,
-    action: string,
-    currentValue: boolean,
-  ) {
+  async function togglePermission(resource: string, action: string, currentValue: boolean) {
     if (!projectId || !token) return;
     const key = `${resource}-${action}`;
     setSaving(key);
     try {
       await fetch(`${BASE_URL}/admin/projects/${projectId}/permissions`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          role: "tester",
-          resource,
-          action,
-          allowed: !currentValue,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role: "tester", resource, action, allowed: !currentValue }),
       });
       setPermissions((prev) =>
         prev.map((p) =>
@@ -156,24 +140,8 @@ function PermissionsTab({ projectId }: { projectId: string }) {
     }
   }
 
-  if (error) {
-    return (
-      <div style={{
-        background: "#2d1414",
-        border: "1px solid #5c2020",
-        borderRadius: 6,
-        padding: "12px 16px",
-        color: "#f87171",
-        fontSize: 13,
-      }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (loading) {
-    return <p style={{ color: "#666", fontSize: 14 }}>Loading permissions…</p>;
-  }
+  if (error) return <div className={errorBoxClass}>{error}</div>;
+  if (loading) return <p className="text-slate-500 text-sm">Loading permissions…</p>;
 
   const grouped = permissions.reduce((acc, perm) => {
     if (!acc[perm.resource]) acc[perm.resource] = [];
@@ -182,60 +150,38 @@ function PermissionsTab({ projectId }: { projectId: string }) {
   }, {} as Record<string, any[]>);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <p style={{ fontSize: 13, color: "#888", margin: 0 }}>
+    <div className="flex flex-col gap-6">
+      <p className="text-[13px] text-slate-400 m-0">
         Configure what testers can do in this project. Admin always has full access.
       </p>
 
       {Object.entries(grouped).map(([resource, perms]) => (
-        <div
-          key={resource}
-          style={{
-            background: "#1a1a1a",
-            border: "1px solid #2a2a2a",
-            borderRadius: 8,
-            padding: 20,
-          }}
-        >
-          <h3 style={{
-            margin: "0 0 16px",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "#eee",
-            textTransform: "capitalize",
-          }}>
+        <div key={resource} className="bg-card border border-slate-800 rounded-lg p-5">
+          <h3 className="m-0 mb-4 text-sm font-semibold text-foreground capitalize">
             {resource.replace("_", " ")}
           </h3>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {(perms as any[]).map((perm) => {
               const key = `${perm.resource}-${perm.action}`;
               const isSaving = saving === key;
               return (
                 <label
                   key={key}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "10px 12px",
-                    background: "#111",
-                    borderRadius: 6,
-                    cursor: isSaving ? "wait" : "pointer",
-                    opacity: isSaving ? 0.6 : 1,
-                  }}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2.5 bg-[#111] rounded-md",
+                    isSaving ? "cursor-wait opacity-60" : "cursor-pointer",
+                  )}
                 >
-                  <span style={{ fontSize: 13, color: "#ccc" }}>
+                  <span className="text-[13px] text-muted-foreground">
                     {formatAction(perm.action)}
                   </span>
                   <input
                     type="checkbox"
                     checked={perm.allowed}
                     disabled={isSaving}
-                    onChange={() =>
-                      togglePermission(perm.resource, perm.action, perm.allowed)
-                    }
-                    style={{ width: 18, height: 18, cursor: isSaving ? "wait" : "pointer" }}
+                    onChange={() => togglePermission(perm.resource, perm.action, perm.allowed)}
+                    className="w-4 h-4 cursor-pointer disabled:cursor-wait"
                   />
                 </label>
               );
@@ -262,43 +208,4 @@ function formatAction(action: string): string {
   return labels[action] ?? action;
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    padding: "48px 32px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    color: "#888",
-  },
-  tabBar: {
-    display: "flex",
-    gap: 4,
-    borderBottom: "1px solid #2a2a2a",
-  },
-  tabBtn: {
-    background: "none",
-    border: "none",
-    borderBottom: "2px solid transparent",
-    padding: "10px 18px",
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: "pointer",
-    marginBottom: -1,
-  },
-};
+const errorBoxClass = "bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]";

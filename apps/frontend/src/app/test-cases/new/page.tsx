@@ -11,13 +11,13 @@ export default async function NewTestCasePage({ searchParams }: Props) {
 
   return (
     <ProtectedRoute>
-      <main style={{ padding: 32, fontFamily: "sans-serif", color: "#eee", background: "#111", minHeight: "100vh" }}>
-        <div style={{ marginBottom: 20 }}>
-          <Link href="/test-cases" style={{ color: "#0070f3", textDecoration: "none", fontSize: 14 }}>
+      <main className="px-8 py-8 min-h-screen">
+        <div className="mb-5">
+          <Link href="/test-cases" className="text-primary no-underline text-sm hover:underline">
             ← Back to Test Cases
           </Link>
         </div>
-        <h1 style={{ marginBottom: 24 }}>New Test Case</h1>
+        <h1 className="mb-6 text-2xl font-bold text-foreground">New Test Case</h1>
         <NewTestCaseClient initialSuiteId={suiteId} />
       </main>
     </ProtectedRoute>

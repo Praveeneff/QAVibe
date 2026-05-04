@@ -67,6 +67,7 @@ model TestSuite {
   createdAt   DateTime    @default(now())
   createdBy   String?
   testCases   TestCase[]
+  apiTests    ApiTest[]
   project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
 }
 
@@ -163,6 +164,8 @@ model Project {
   testRuns    TestRun[]
   tokenLimits UserTokenLimit[]
   permissions ProjectPermission[]
+  apiTests        ApiTest[]
+  apiCollections  ApiCollection[]
 }
 
 model ProjectMember {
@@ -210,4 +213,91 @@ model ProjectPermission {
   project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, role, resource, action])
+}
+
+model ApiTest {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+
+  method      String
+  url         String
+  headers     Json?
+  queryParams Json?
+  body        Json?
+
+  assertions  Json[]
+
+  suiteId     String?
+  suite       TestSuite? @relation(fields: [suiteId], references: [id], onDelete: SetNull)
+
+  executions       ApiExecution[]
+  collectionTests  ApiCollectionTest[]
+
+  variables   Json?
+
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([suiteId])
+}
+
+model ApiExecution {
+  id        String  @id @default(cuid())
+  apiTestId String
+  apiTest   ApiTest @relation(fields: [apiTestId], references: [id], onDelete: Cascade)
+
+  status          String
+
+  responseStatus  Int?
+  responseTime    Int?
+  responseHeaders Json?
+  responseBody    Json?
+
+  assertionResults Json[]
+
+  error      String?
+  errorStack String?
+
+  environment String?
+  executedBy  String?
+  executedAt  DateTime @default(now())
+
+  @@index([apiTestId])
+  @@index([executedAt])
+}
+
+model ApiCollection {
+  id          String  @id @default(cuid())
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  variables   Json?   // collection-level vars, merged under test-level vars
+
+  tests       ApiCollectionTest[]
+
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model ApiCollectionTest {
+  id           String        @id @default(cuid())
+  collectionId String
+  collection   ApiCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  apiTestId    String
+  apiTest      ApiTest       @relation(fields: [apiTestId], references: [id], onDelete: Cascade)
+  order        Int           @default(0)
+
+  @@unique([collectionId, apiTestId])
+  @@index([collectionId])
 }

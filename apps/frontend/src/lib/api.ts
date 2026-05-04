@@ -2,6 +2,14 @@ import { getStoredToken } from "@/context/AuthContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+export function handle401Redirect() {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("qavibe_token");
+    localStorage.removeItem("qavibe_user");
+    window.location.href = "/login";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getStoredToken();
   const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
@@ -117,10 +125,13 @@ export const getTestCases = (filters: TestCaseFilters = {}) => {
 
 // ── Test Suites ───────────────────────────────────────────────────────────────
 
-export const getSuites = () => request<TestSuite[]>("/test-suites");
+export const getSuites = (projectId?: string) => {
+  const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  return request<TestSuite[]>(`/test-suites${qs}`);
+};
 
-export const createSuite = (name: string, description?: string, parentId?: string) =>
-  request<TestSuite>("/test-suites", { method: "POST", body: JSON.stringify({ name, description, parentId }) });
+export const createSuite = (name: string, description?: string, parentId?: string, projectId?: string) =>
+  request<TestSuite>("/test-suites", { method: "POST", body: JSON.stringify({ name, description, parentId, ...(projectId ? { projectId } : {}) }) });
 
 export const deleteSuite = (id: string) =>
   request<void>(`/test-suites/${id}`, { method: "DELETE" });
@@ -220,6 +231,7 @@ export async function updateTestResult(
   status: string,
   notes: string | undefined,
   token: string,
+  projectId?: string,
 ): Promise<any> {
   const res = await fetch(
     `${BASE_URL}/test-runs/${runId}/results/${resultId}`,
@@ -231,7 +243,8 @@ export async function updateTestResult(
       },
       body: JSON.stringify({
         status,
-        ...(notes ? { notes } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+        ...(projectId ? { projectId } : {}),
       }),
     },
   );
@@ -255,8 +268,8 @@ export async function uploadScreenshot(runId: string, resultId: string, file: Fi
   return res.json();
 }
 
-export const completeTestRun = (runId: string) =>
-  request<TestRun>(`/test-runs/${runId}/complete`, { method: "PATCH", body: JSON.stringify({}) });
+export const completeTestRun = (runId: string, projectId?: string) =>
+  request<TestRun>(`/test-runs/${runId}/complete`, { method: "PATCH", body: JSON.stringify({ ...(projectId ? { projectId } : {}) }) });
 
 export interface RunSummary {
   id: string;
@@ -418,3 +431,161 @@ export async function getProjectMembers(
   if (!res.ok) return [];
   return res.json();
 }
+
+// ── API Testing ───────────────────────────────────────────────────────────────
+
+export type ApiTestMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+
+export interface ApiTestLastExecution {
+  id:             string;
+  status:         "pass" | "fail" | "error";
+  responseStatus: number | null;
+  responseTime:   number | null;
+  executedAt:     string;
+}
+
+export interface ApiTest {
+  id:            string;
+  projectId:     string;
+  name:          string;
+  description:   string | null;
+  method:        ApiTestMethod;
+  url:           string;
+  headers:       Record<string, string> | null;
+  queryParams:   Record<string, string> | null;
+  body:          unknown;
+  assertions:    unknown[];
+  suiteId:       string | null;
+  suite:         { id: string; name: string } | null;
+  variables:     Record<string, unknown> | null;
+  createdBy:     string | null;
+  createdAt:     string;
+  updatedAt:     string;
+  lastExecution: ApiTestLastExecution | null;
+}
+
+export interface AssertionResult {
+  assertion: Record<string, unknown>;
+  passed:    boolean;
+  actual:    unknown;
+  expected:  unknown;
+  message:   string;
+}
+
+export interface ApiExecutionResult {
+  executionId:      string;
+  status:           "pass" | "fail" | "error";
+  responseStatus:   number | null;
+  responseTime:     number | null;
+  responseHeaders:  Record<string, string> | null;
+  responseBody:     unknown;
+  assertionResults: AssertionResult[];
+  error?:           string;
+}
+
+export const listApiTests = (projectId: string) =>
+  request<ApiTest[]>(`/api/api-tests?projectId=${encodeURIComponent(projectId)}`);
+
+export const getApiTest = (id: string) =>
+  request<ApiTest & { executions: ApiTestLastExecution[] }>(`/api/api-tests/${id}`);
+
+export const createApiTest = (data: Omit<ApiTest, "id" | "createdAt" | "updatedAt" | "lastExecution" | "suite">) =>
+  request<ApiTest>("/api/api-tests", { method: "POST", body: JSON.stringify(data) });
+
+export const updateApiTest = (id: string, data: Partial<ApiTest>) =>
+  request<ApiTest>(`/api/api-tests/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteApiTest = (id: string) =>
+  request<{ success: boolean }>(`/api/api-tests/${id}`, { method: "DELETE" });
+
+export const executeApiTest = (id: string, opts?: { variables?: Record<string, unknown>; environment?: string }) =>
+  request<ApiExecutionResult>(`/api/api-tests/${id}/execute`, { method: "POST", body: JSON.stringify(opts ?? {}) });
+
+export interface ApiExecution {
+  id:               string;
+  apiTestId:        string;
+  status:           "pass" | "fail" | "error";
+  responseStatus:   number | null;
+  responseTime:     number | null;
+  responseHeaders:  Record<string, string> | null;
+  responseBody:     unknown;
+  assertionResults: AssertionResult[];
+  error:            string | null;
+  errorStack:       string | null;
+  environment:      string | null;
+  executedBy:       string | null;
+  executedAt:       string;
+}
+
+export const getApiExecutions = (apiTestId: string, limit = 100) =>
+  request<ApiExecution[]>(`/api/api-tests/${apiTestId}/executions?limit=${limit}`);
+
+// ── API Collections ───────────────────────────────────────────────────────────
+
+export interface ApiCollectionTest {
+  id:       string;
+  order:    number;
+  apiTestId: string;
+  apiTest:  ApiTest & { executions: ApiTestLastExecution[] };
+}
+
+export interface ApiCollection {
+  id:           string;
+  projectId:    string;
+  name:         string;
+  description:  string | null;
+  variables:    Record<string, unknown> | null;
+  tests:        ApiCollectionTest[];
+  createdBy:    string | null;
+  createdAt:    string;
+  updatedAt:    string;
+  _count?:      { tests: number };
+}
+
+export interface CollectionTestResult {
+  order:            number;
+  apiTestId:        string;
+  name:             string;
+  method:           string;
+  url:              string;
+  status:           "pass" | "fail" | "error" | "skipped";
+  responseStatus:   number | null;
+  responseTime:     number | null;
+  assertionResults: AssertionResult[];
+  error?:           string;
+  executionId?:     string;
+}
+
+export interface CollectionRunResult {
+  collectionId:   string;
+  collectionName: string;
+  status:         "pass" | "fail";
+  passed:         number;
+  failed:         number;
+  skipped:        number;
+  total:          number;
+  duration:       number;
+  startedAt:      string;
+  results:        CollectionTestResult[];
+}
+
+export const listCollections  = (projectId: string) =>
+  request<ApiCollection[]>(`/api/collections?projectId=${encodeURIComponent(projectId)}`);
+
+export const getCollection    = (id: string) =>
+  request<ApiCollection>(`/api/collections/${id}`);
+
+export const createCollection = (data: { projectId: string; name: string; description?: string; variables?: Record<string, unknown>; testIds?: string[] }) =>
+  request<ApiCollection>("/api/collections", { method: "POST", body: JSON.stringify(data) });
+
+export const updateCollection = (id: string, data: Partial<Pick<ApiCollection, "name" | "description" | "variables">>) =>
+  request<ApiCollection>(`/api/collections/${id}`, { method: "PUT", body: JSON.stringify(data) });
+
+export const deleteCollection = (id: string) =>
+  request<{ success: boolean }>(`/api/collections/${id}`, { method: "DELETE" });
+
+export const setCollectionTests = (id: string, testIds: string[]) =>
+  request<ApiCollection>(`/api/collections/${id}/tests`, { method: "PUT", body: JSON.stringify({ testIds }) });
+
+export const runCollection = (id: string, opts?: { variables?: Record<string, unknown>; environment?: string; stopOnFail?: boolean }) =>
+  request<CollectionRunResult>(`/api/collections/${id}/run`, { method: "POST", body: JSON.stringify(opts ?? {}) });

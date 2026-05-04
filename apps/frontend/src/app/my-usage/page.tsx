@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { getStoredToken } from "@/context/AuthContext";
 
@@ -36,10 +37,16 @@ function timeAgo(date: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function barColor(pct: number): string {
-  if (pct > 80) return "#ef4444";
-  if (pct > 50) return "#f59e0b";
-  return "#22c55e";
+function barColorClass(pct: number): string {
+  if (pct > 80) return "bg-red-500";
+  if (pct > 50) return "bg-amber-500";
+  return "bg-emerald-500";
+}
+
+function barTextClass(pct: number): string {
+  if (pct > 80) return "text-destructive";
+  if (pct > 50) return "text-amber-500";
+  return "text-emerald-400";
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -61,10 +68,8 @@ function MyUsageContent() {
   useEffect(() => {
     const token = getStoredToken();
     if (!token) return;
-
     setLoading(true);
     setError(null);
-
     Promise.all([
       fetch(`${BASE_URL}/auth/me/usage`,   { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${BASE_URL}/ai-logs/my-logs`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -82,59 +87,58 @@ function MyUsageContent() {
 
   if (loading) {
     return (
-      <div style={styles.page}>
-        <p style={{ color: "#666", fontSize: 14 }}>Loading…</p>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <p className="text-slate-500 text-sm">Loading…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={styles.page}>
-        <div style={styles.errorBox}>{error}</div>
+      <div className="min-h-screen bg-background px-8 py-12">
+        <div className={errorBoxClass}>{error}</div>
       </div>
     );
   }
 
-  const pct   = Math.min(100, usage?.percentUsed ?? 0);
-  const color = barColor(pct);
+  const pct = Math.min(100, usage?.percentUsed ?? 0);
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="min-h-screen bg-background px-8 py-12">
+      <div className="w-full max-w-[900px] mx-auto">
 
         {/* Page title */}
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={styles.title}>My Usage</h1>
-          <p style={styles.subtitle}>Your AI token consumption and generation history</p>
+        <div className="mb-8">
+          <h1 className="m-0 text-[26px] font-bold text-foreground">My Usage</h1>
+          <p className="mt-1.5 mb-0 text-[13px] text-slate-500">Your AI token consumption and generation history</p>
         </div>
 
-        {/* ── SECTION 1: Token Usage Card ─────────────────────────────────── */}
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>My Token Usage</div>
+        {/* Token Usage Card */}
+        <div className="bg-card border border-slate-800 rounded-xl p-6">
+          <div className="text-sm font-semibold text-slate-400 uppercase tracking-[0.06em]">My Token Usage</div>
 
-          {/* Large token count */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "16px 0 4px" }}>
-            <span style={{ fontSize: 40, fontWeight: 700, color: "#fff", lineHeight: 1 }}>
+          <div className="flex items-baseline gap-2.5 mt-4 mb-1">
+            <span className="text-[40px] font-bold text-foreground leading-none">
               {(usage?.tokenUsed ?? 0).toLocaleString()}
             </span>
-            <span style={{ fontSize: 14, color: "#555" }}>
+            <span className="text-sm text-slate-500">
               of {(usage?.globalLimit ?? 50000).toLocaleString()} tokens used
             </span>
           </div>
 
-          {/* Progress bar */}
-          <div style={{ margin: "14px 0 6px" }}>
-            <div style={styles.barTrack}>
-              <div style={{ ...styles.barFill, width: `${pct}%`, background: color }} />
+          <div className="my-3.5">
+            <div className="w-full h-1.5 bg-slate-800 rounded overflow-hidden">
+              <div
+                className={cn("h-full rounded transition-[width]", barColorClass(pct))}
+                style={{ width: `${pct}%` }}
+              />
             </div>
           </div>
 
-          {/* Percentage + last reset row */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color, fontWeight: 600 }}>{pct}% used</span>
+          <div className="flex items-center justify-between">
+            <span className={cn("text-[13px] font-semibold", barTextClass(pct))}>{pct}% used</span>
             {usage?.tokenResetAt && (
-              <span style={{ fontSize: 12, color: "#555" }}>
+              <span className="text-xs text-slate-500">
                 Last reset:{" "}
                 {new Date(usage.tokenResetAt).toLocaleDateString(undefined, {
                   year: "numeric", month: "short", day: "numeric",
@@ -143,105 +147,65 @@ function MyUsageContent() {
             )}
           </div>
 
-          {/* Warning banner */}
           {pct >= 80 && (
-            <div style={styles.warningBanner}>
+            <div className="mt-4 bg-amber-950/20 border border-amber-800 rounded-md px-4 py-3 text-amber-400 text-[13px]">
               You are approaching your token limit. Contact your admin to increase it.
             </div>
           )}
         </div>
 
-        {/* ── SECTION 2: Generation History ───────────────────────────────── */}
-        <div style={{ marginTop: 36 }}>
-          <div style={styles.sectionLabel}>My Generation History</div>
+        {/* Generation History */}
+        <div className="mt-9">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.07em] mb-3.5">
+            My Generation History
+          </div>
 
           {logs.length === 0 ? (
-            <div style={styles.emptyState}>
-              <div style={{ fontSize: 13, color: "#555" }}>
+            <div className="bg-card border border-slate-800 rounded-xl px-8 py-10 text-center">
+              <div className="text-[13px] text-slate-500">
                 No AI generations yet — generate test cases from BRD or codebase to see logs here.
               </div>
             </div>
           ) : (
-            <table style={styles.table}>
+            <table className="w-full border-collapse">
               <thead>
                 <tr>
                   {["Time", "Provider", "Latency", "Cases", "Tokens", "Fallback from"].map((h) => (
-                    <th key={h} style={styles.th}>{h}</th>
+                    <th key={h} className={thClass}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => (
-                  <tr key={log.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
-                    {/* Time */}
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: "#888" }}>{timeAgo(log.createdAt)}</span>
+                  <tr key={log.id} className="border-b border-slate-900">
+                    <td className={tdClass}>
+                      <span className="text-[13px] text-slate-400">{timeAgo(log.createdAt)}</span>
                     </td>
-
-                    {/* Provider */}
-                    <td style={styles.td}>
-                      <span style={{
-                        fontFamily: "monospace",
-                        fontSize: 12,
-                        color: "#aaa",
-                        background: "#111",
-                        border: "1px solid #2a2a2a",
-                        borderRadius: 4,
-                        padding: "2px 6px",
-                        display: "inline-block",
-                        maxWidth: 260,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}>
+                    <td className={tdClass}>
+                      <span className="font-mono text-xs text-muted-foreground bg-[#111] border border-slate-800 rounded px-1.5 py-px inline-block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap">
                         {log.provider}
                       </span>
                     </td>
-
-                    {/* Latency */}
-                    <td style={styles.td}>
-                      <span style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: log.latencyMs > 10000 ? "#ef4444" : "#22c55e",
-                      }}>
+                    <td className={tdClass}>
+                      <span className={cn("text-[13px] font-medium", log.latencyMs > 10000 ? "text-destructive" : "text-emerald-400")}>
                         {(log.latencyMs / 1000).toFixed(1)}s
                       </span>
                     </td>
-
-                    {/* Cases */}
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: "#eee" }}>{log.caseCount}</span>
+                    <td className={tdClass}>
+                      <span className="text-[13px] text-foreground">{log.caseCount}</span>
                     </td>
-
-                    {/* Tokens */}
-                    <td style={styles.td}>
-                      <span style={{ fontSize: 13, color: log.promptTokens ? "#eee" : "#444" }}>
+                    <td className={tdClass}>
+                      <span className={cn("text-[13px]", log.promptTokens ? "text-foreground" : "text-slate-700")}>
                         {log.promptTokens ? log.promptTokens.toLocaleString() : "—"}
                       </span>
                     </td>
-
-                    {/* Fallback from */}
-                    <td style={styles.td}>
+                    <td className={tdClass}>
                       {log.fallbackFrom ? (
-                        <span style={{
-                          fontFamily: "monospace",
-                          fontSize: 11,
-                          color: "#f59e0b",
-                          background: "#1c1208",
-                          border: "1px solid #78350f",
-                          borderRadius: 4,
-                          padding: "2px 6px",
-                          display: "inline-block",
-                          maxWidth: 200,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}>
+                        <span className="font-mono text-[11px] text-amber-400 bg-amber-950/20 border border-amber-900 rounded px-1.5 py-px inline-block max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
                           {log.fallbackFrom}
                         </span>
                       ) : (
-                        <span style={{ fontSize: 13, color: "#333" }}>—</span>
+                        <span className="text-[13px] text-slate-700">—</span>
                       )}
                     </td>
                   </tr>
@@ -256,103 +220,6 @@ function MyUsageContent() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    padding: "48px 32px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: 900,
-    margin: "0 auto",
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    color: "#666",
-  },
-  card: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    padding: 24,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-  },
-  barTrack: {
-    width: "100%",
-    height: 6,
-    background: "#2a2a2a",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 3,
-    transition: "width 0.4s ease",
-  },
-  warningBanner: {
-    marginTop: 16,
-    background: "#2d1a00",
-    border: "1px solid #78350f",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f59e0b",
-    fontSize: 13,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
-    marginBottom: 14,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-  th: {
-    textAlign: "left" as const,
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#666",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.06em",
-    padding: "8px 12px",
-    borderBottom: "1px solid #2a2a2a",
-  },
-  td: {
-    padding: "11px 12px",
-    verticalAlign: "middle" as const,
-  },
-  emptyState: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 10,
-    padding: "40px 32px",
-    textAlign: "center" as const,
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const thClass = "text-left text-xs font-semibold text-slate-500 uppercase tracking-[0.06em] px-3 py-2 border-b border-slate-800";
+const tdClass = "px-3 py-[11px] align-middle";
+const errorBoxClass = "bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]";

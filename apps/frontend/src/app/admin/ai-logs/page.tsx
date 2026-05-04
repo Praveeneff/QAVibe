@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import {
   getAiLogSummary,
   getAiLogTrend,
@@ -26,43 +27,70 @@ function relativeTime(dateStr: string): string {
 }
 
 function latencyColor(ms: number): string {
-  if (ms < 1000) return "#4caf50";
-  if (ms <= 3000) return "#f59e0b";
-  return "#f44336";
+  if (ms < 1000) return "text-teal-400";
+  if (ms <= 3000) return "text-amber-400";
+  return "text-rose-400";
 }
 
+// SVG / dynamic hex — must stay inline for SVG fill/stroke
 const PROVIDER_COLORS: Record<string, string> = {
-  gemini:      "#a855f7",
-  openai:      "#22c55e",
-  claude:      "#f59e0b",
-  openrouter:  "#3b82f6",
+  gemini:     "#8b5cf6",
+  groq:       "#14b8a6",
+  openai:     "#22c55e",
+  claude:     "#f59e0b",
 };
 function providerColor(provider: string): string {
-  return PROVIDER_COLORS[provider.toLowerCase()] ?? "#6b7280";
+  const key = provider.toLowerCase().split("/")[0];
+  return PROVIDER_COLORS[key] ?? "#64748b";
+}
+
+// ── Shared panel components ───────────────────────────────────────────────────
+
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn(
+      "rounded-xl border border-white/[0.06] bg-[rgba(15,15,20,0.65)] backdrop-blur-sm p-6 mb-5",
+      className,
+    )}>
+      {children}
+    </div>
+  );
+}
+
+function PanelTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mt-0 mb-5 text-[11px] font-semibold text-slate-400 uppercase tracking-[0.07em] flex items-center gap-2">
+      <span className="w-1 h-4 rounded-full bg-gradient-to-b from-violet-500 to-teal-500 inline-block shrink-0" />
+      {children}
+    </h2>
+  );
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={cn("rounded-lg bg-white/[0.04] animate-pulse", className)} />;
 }
 
 // ── Metric card ───────────────────────────────────────────────────────────────
 
-function MetricCard({
-  label, value, unit,
-}: {
-  label: string; value: string | number; unit?: string;
-}) {
+interface MetricCardProps { label: string; value: string | number; unit?: string; accent: "purple" | "teal" | "amber" | "rose" }
+const ACCENT = {
+  purple: { glow: "shadow-[0_0_32px_-4px_rgba(139,92,246,0.2)]", text: "text-violet-400", border: "border-violet-500/10" },
+  teal:   { glow: "shadow-[0_0_32px_-4px_rgba(20,184,166,0.18)]", text: "text-teal-400",   border: "border-teal-500/10"   },
+  amber:  { glow: "shadow-[0_0_32px_-4px_rgba(245,158,11,0.18)]",  text: "text-amber-400",  border: "border-amber-500/10"  },
+  rose:   { glow: "shadow-[0_0_32px_-4px_rgba(244,63,94,0.18)]",   text: "text-rose-400",   border: "border-rose-500/10"   },
+};
+
+function MetricCard({ label, value, unit, accent }: MetricCardProps) {
+  const a = ACCENT[accent];
   return (
-    <div style={{
-      background: "#1a1a1a",
-      border: "1px solid #2a2a2a",
-      borderRadius: 8,
-      padding: "20px 24px",
-      flex: 1,
-      minWidth: 160,
-    }}>
-      <div style={{ fontSize: 12, color: "#888", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: "#eee" }}>
-        {value}
-        {unit && <span style={{ fontSize: 16, color: "#888", marginLeft: 4 }}>{unit}</span>}
+    <div className={cn(
+      "flex-1 min-w-[150px] rounded-xl p-5 border",
+      "bg-[rgba(15,15,20,0.7)] backdrop-blur-sm",
+      a.border, a.glow,
+    )}>
+      <div className="text-[11px] font-medium text-slate-500 uppercase tracking-[0.08em] mb-1">{label}</div>
+      <div className={cn("text-[30px] font-bold leading-none", a.text)}>
+        {value}{unit && <span className="text-sm text-slate-500 ml-1 font-normal">{unit}</span>}
       </div>
     </div>
   );
@@ -72,7 +100,7 @@ function MetricCard({
 
 function ProviderTable({ rows }: { rows: AiLogSummary["providerBreakdown"] }) {
   if (rows.length === 0) {
-    return <p style={{ color: "#555", fontSize: 14 }}>No generation data yet.</p>;
+    return <p className="text-slate-600 text-[13px]">No generation data yet.</p>;
   }
 
   const minLatencyRow = rows.reduce((a, b) => a.avgLatencyMs <= b.avgLatencyMs ? a : b);
@@ -80,51 +108,57 @@ function ProviderTable({ rows }: { rows: AiLogSummary["providerBreakdown"] }) {
 
   return (
     <>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <table className="w-full border-collapse text-[13px]">
         <thead>
-          <tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left", color: "#777" }}>
-            <th style={th}>Provider</th>
-            <th style={th}>Runs</th>
-            <th style={th}>Avg latency (ms)</th>
-            <th style={th}>Avg cases returned</th>
-            <th style={th}>Failures triggered</th>
+          <tr>
+            <th className={thClass}>Provider</th>
+            <th className={thClass}>Runs</th>
+            <th className={thClass}>Avg latency</th>
+            <th className={thClass}>Avg cases</th>
+            <th className={thClass}>Failures</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((p) => {
-            const isBest    = rows.length > 1 && p.provider === minLatencyRow.provider;
-            const isWorst   = maxFailureRow.failureCount > 0 && p.provider === maxFailureRow.provider;
-            const highlight = isWorst ? "#f44336" : isBest ? "#4caf50" : "transparent";
+            const isBest  = rows.length > 1 && p.provider === minLatencyRow.provider;
+            const isWorst = maxFailureRow.failureCount > 0 && p.provider === maxFailureRow.provider;
             return (
               <tr
                 key={p.provider}
-                style={{
-                  borderBottom: "1px solid #1e1e1e",
-                  borderLeft: `3px solid ${highlight}`,
-                }}
+                className={cn(
+                  "border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors border-l-2",
+                  isWorst ? "border-l-rose-500" : isBest ? "border-l-teal-500" : "border-l-transparent",
+                )}
               >
-                <td style={td}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <span style={{
-                      width: 10, height: 10, borderRadius: "50%",
-                      background: providerColor(p.provider), flexShrink: 0,
-                    }} />
-                    {p.provider}
+                <td className={tdClass}>
+                  <span className="inline-flex items-center gap-2">
+                    {/* Dynamic provider color — stays inline */}
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: providerColor(p.provider), flexShrink: 0 }} />
+                    <span className="text-slate-300">{p.provider}</span>
                   </span>
                 </td>
-                <td style={td}>{p.count}</td>
-                <td style={{ ...td, color: latencyColor(p.avgLatencyMs) }}>{p.avgLatencyMs}</td>
-                <td style={td}>{p.avgCaseCount}</td>
-                <td style={{ ...td, color: p.failureCount > 0 ? "#f44336" : "#555" }}>
-                  {p.failureCount}
+                <td className={tdClass}>{p.count}</td>
+                <td className={cn(tdClass, latencyColor(p.avgLatencyMs), "tabular-nums font-medium")}>
+                  {p.avgLatencyMs} ms
+                </td>
+                <td className={tdClass}>{p.avgCaseCount}</td>
+                <td className={tdClass}>
+                  <span className={cn(
+                    "inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border",
+                    p.failureCount > 0
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-white/[0.03] text-slate-600 border-white/[0.05]",
+                  )}>
+                    {p.failureCount}
+                  </span>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <p style={{ fontSize: 12, color: "#555", marginTop: 10, marginBottom: 0 }}>
-        Failures = times this provider caused a fallback to the next
+      <p className="text-[11px] text-slate-600 mt-3 mb-0">
+        Failures = times this provider triggered fallback to the next
       </p>
     </>
   );
@@ -134,64 +168,40 @@ function ProviderTable({ rows }: { rows: AiLogSummary["providerBreakdown"] }) {
 
 function LatencyTrendChart({ data }: { data: AiLogTrendPoint[] }) {
   if (data.length < 2) {
-    return (
-      <div style={{ padding: "40px 0", color: "#555", textAlign: "center", fontSize: 14 }}>
-        Not enough data yet
-      </div>
-    );
+    return <div className="py-10 text-slate-600 text-center text-sm">Not enough data yet</div>;
   }
 
   const W = 700, H = 220;
   const PAD = { top: 20, right: 24, bottom: 35, left: 60 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
-
   const maxY = Math.max(...data.map((d) => d.latencyMs), 1);
   const n = data.length;
-
   const toX = (i: number) => PAD.left + (n > 1 ? (i / (n - 1)) * innerW : innerW / 2);
   const toY = (ms: number) => PAD.top + innerH * (1 - ms / maxY);
-
   const providers = [...new Set(data.map((d) => d.provider))];
-
-  // Y-axis ticks
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(f * maxY));
-
-  // X-axis ticks: show ~6 evenly spaced indices
   const step = Math.max(1, Math.floor((n - 1) / 5));
   const xTicks = Array.from({ length: Math.floor((n - 1) / step) + 1 }, (_, k) => k * step);
   if (xTicks[xTicks.length - 1] !== n - 1) xTicks.push(n - 1);
 
   return (
     <>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        style={{ width: "100%", maxWidth: W, display: "block" }}
-        aria-label="AI generation latency trend"
-      >
-        {/* Y grid + labels */}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: W, display: "block" }} aria-label="AI generation latency trend">
         {yTicks.map((ms) => {
           const y = toY(ms);
           return (
             <g key={ms}>
-              <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#2a2a2a" strokeWidth={1} />
-              <text x={PAD.left - 8} y={y + 4} textAnchor="end" fill="#555" fontSize={10}>{ms}</text>
+              <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+              <text x={PAD.left - 8} y={y + 4} textAnchor="end" fill="#475569" fontSize={10}>{ms}</text>
             </g>
           );
         })}
-
-        {/* X ticks */}
         {xTicks.map((i) => (
-          <text key={i} x={toX(i)} y={H - PAD.bottom + 14} textAnchor="middle" fill="#555" fontSize={10}>
-            {i}
-          </text>
+          <text key={i} x={toX(i)} y={H - PAD.bottom + 14} textAnchor="middle" fill="#475569" fontSize={10}>{i}</text>
         ))}
-
-        {/* Axes */}
-        <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="#333" strokeWidth={1} />
-        <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="#333" strokeWidth={1} />
-
-        {/* Polylines per provider (rendered before dots so dots appear on top) */}
+        <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+        <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
         {providers.map((provider) => {
           const pts = data
             .map((d, i) => d.provider === provider ? { x: toX(i), y: toY(d.latencyMs) } : null)
@@ -208,25 +218,17 @@ function LatencyTrendChart({ data }: { data: AiLogTrendPoint[] }) {
             />
           );
         })}
-
-        {/* Dots with tooltips */}
         {data.map((d, i) => (
           <g key={i}>
             <title>{d.provider} — {d.latencyMs}ms — {new Date(d.createdAt).toLocaleString()}</title>
-            <circle
-              cx={toX(i)} cy={toY(d.latencyMs)}
-              r={4}
-              fill={providerColor(d.provider)}
-              stroke="#111" strokeWidth={1.5}
-            />
+            <circle cx={toX(i)} cy={toY(d.latencyMs)} r={4} fill={providerColor(d.provider)} stroke="rgba(0,0,0,0.5)" strokeWidth={1.5} />
           </g>
         ))}
       </svg>
-
-      {/* Legend */}
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 12 }}>
+      <div className="flex gap-5 flex-wrap mt-3">
         {providers.map((p) => (
-          <span key={p} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#aaa" }}>
+          <span key={p} className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
+            {/* Dynamic color stays inline */}
             <span style={{ width: 12, height: 3, background: providerColor(p), borderRadius: 2, display: "inline-block" }} />
             {p}
           </span>
@@ -240,40 +242,43 @@ function LatencyTrendChart({ data }: { data: AiLogTrendPoint[] }) {
 
 function RecentLogsTable({ logs }: { logs: AiRecentLog[] }) {
   if (logs.length === 0) {
-    return <p style={{ color: "#555", fontSize: 14 }}>No logs yet.</p>;
+    return <p className="text-slate-600 text-[13px]">No logs yet.</p>;
   }
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+    <table className="w-full border-collapse text-[13px]">
       <thead>
-        <tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left", color: "#777" }}>
-          <th style={th}>Time</th>
-          <th style={th}>Provider</th>
-          <th style={th}>Latency</th>
-          <th style={th}>Cases</th>
-          <th style={th}>Tokens</th>
-          <th style={th}>Fallback from</th>
+        <tr>
+          <th className={thClass}>Time</th>
+          <th className={thClass}>Provider</th>
+          <th className={thClass}>Latency</th>
+          <th className={thClass}>Cases</th>
+          <th className={thClass}>Tokens</th>
+          <th className={thClass}>Fallback from</th>
         </tr>
       </thead>
       <tbody>
         {logs.map((log) => (
-          <tr key={log.id} style={{ borderBottom: "1px solid #1a1a1a" }}>
-            <td style={{ ...td, color: "#666", whiteSpace: "nowrap" }}>{relativeTime(log.createdAt)}</td>
-            <td style={td}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: providerColor(log.provider), flexShrink: 0,
-                }} />
-                {log.provider}
+          <tr key={log.id} className="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+            <td className={cn(tdClass, "text-slate-600 whitespace-nowrap tabular-nums")}>{relativeTime(log.createdAt)}</td>
+            <td className={tdClass}>
+              <span className="inline-flex items-center gap-2">
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: providerColor(log.provider), flexShrink: 0 }} />
+                <span className="text-slate-300 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{log.provider}</span>
               </span>
             </td>
-            <td style={{ ...td, color: latencyColor(log.latencyMs), fontVariantNumeric: "tabular-nums" }}>
+            <td className={cn(tdClass, latencyColor(log.latencyMs), "tabular-nums font-medium")}>
               {log.latencyMs} ms
             </td>
-            <td style={td}>{log.caseCount}</td>
-            <td style={{ ...td, color: "#666" }}>{log.promptTokens ?? "—"}</td>
-            <td style={{ ...td, color: log.fallbackFrom ? "#f59e0b" : "#444" }}>
-              {log.fallbackFrom ?? "—"}
+            <td className={cn(tdClass, "text-slate-300")}>{log.caseCount}</td>
+            <td className={cn(tdClass, "text-slate-600 tabular-nums")}>{log.promptTokens ?? "—"}</td>
+            <td className={tdClass}>
+              {log.fallbackFrom ? (
+                <span className="inline-block max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap text-amber-400 text-[11px]">
+                  {log.fallbackFrom}
+                </span>
+              ) : (
+                <span className="text-slate-700">—</span>
+              )}
             </td>
           </tr>
         ))}
@@ -311,77 +316,75 @@ export default function AiLogsPage() {
     load();
   }, []);
 
-  if (loading) return <p style={{ padding: 32 }}>Loading...</p>;
-
   return (
     <ProtectedRoute>
-    <main style={{ padding: 32, minHeight: "100vh" }}>
-      <h1 style={{ margin: "0 0 6px", fontSize: 24 }}>AI Generation Logs</h1>
-      <p style={{ margin: "0 0 28px", color: "#666", fontSize: 14 }}>
-        Provider performance and generation history
-      </p>
+      {/* Ambient glows */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-violet-600/5 blur-[120px]" />
+        <div className="absolute top-1/2 -right-40 w-[400px] h-[400px] rounded-full bg-teal-500/4 blur-[100px]" />
+      </div>
 
-      {fetchError && <p style={{ color: "#f44336" }}>{fetchError}</p>}
+      <main className="px-8 py-8 min-h-screen">
+        <h1 className="m-0 mb-1 text-2xl font-bold text-foreground">AI Generation Logs</h1>
+        <p className="mt-0 mb-8 text-[13px] text-slate-500">Provider performance and generation history</p>
 
-      {summary && (
-        <>
-          {/* Section 1 — Metric cards */}
-          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 32 }}>
-            <MetricCard label="Total Generations"    value={summary.totalGenerations} />
-            <MetricCard label="Total Cases Generated" value={summary.totalCasesGenerated} />
-            <MetricCard label="Avg Latency"          value={summary.avgLatencyMs} unit="ms" />
-            <MetricCard label="Fallback Rate"        value={summary.fallbackRate} unit="%" />
+        {fetchError && (
+          <div className="mb-6 px-4 py-3 rounded-lg border border-rose-500/20 bg-rose-500/5 text-rose-400 text-sm">
+            {fetchError}
           </div>
+        )}
 
-          {/* Section 2 — Provider breakdown + insight */}
-          <div style={card}>
-            <h2 style={sectionHeading}>Provider Breakdown</h2>
-            <ProviderTable rows={summary.providerBreakdown} />
-            <InsightCard
-              ranked={[...summary.providerBreakdown]
-                .sort(
-                  (a, b) =>
-                    a.avgLatencyMs - b.avgLatencyMs ||
-                    a.failureCount - b.failureCount,
-                )
-                .map((p) => p.provider)}
-            />
-          </div>
+        {loading ? (
+          <>
+            <div className="flex gap-4 flex-wrap mb-5">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="flex-1 min-w-[150px] h-24 rounded-xl" />)}
+            </div>
+            <Skeleton className="h-64 rounded-xl mb-5" />
+            <Skeleton className="h-48 rounded-xl mb-5" />
+          </>
+        ) : summary && (
+          <>
+            {/* Metric cards */}
+            <div className="flex gap-4 flex-wrap mb-5">
+              <MetricCard accent="purple" label="Total Generations"     value={summary.totalGenerations} />
+              <MetricCard accent="teal"   label="Cases Generated"       value={summary.totalCasesGenerated} />
+              <MetricCard accent="amber"  label="Avg Latency"           value={summary.avgLatencyMs} unit="ms" />
+              <MetricCard accent="rose"   label="Fallback Rate"         value={summary.fallbackRate} unit="%" />
+            </div>
 
-          {/* Section 3 — Latency trend chart */}
-          <div style={card}>
-            <h2 style={sectionHeading}>
-              Latency Trend — last {trend.length} generation{trend.length !== 1 ? "s" : ""}
-            </h2>
-            <LatencyTrendChart data={trend} />
-          </div>
+            {/* Provider breakdown */}
+            <Panel>
+              <PanelTitle>Provider Breakdown</PanelTitle>
+              <ProviderTable rows={summary.providerBreakdown} />
+              <InsightCard
+                ranked={[...summary.providerBreakdown]
+                  .sort((a, b) => a.avgLatencyMs - b.avgLatencyMs || a.failureCount - b.failureCount)
+                  .map((p) => p.provider)}
+              />
+            </Panel>
 
-          {/* Section 4 — Recent logs */}
-          <div style={card}>
-            <h2 style={sectionHeading}>Recent Logs</h2>
-            <RecentLogsTable logs={recentLogs} />
-          </div>
-        </>
-      )}
-    </main>
+            {/* Latency trend */}
+            <Panel>
+              <PanelTitle>
+                Latency Trend
+                <span className="ml-auto text-[11px] text-slate-600 font-normal normal-case tracking-normal">
+                  last {trend.length} generation{trend.length !== 1 ? "s" : ""}
+                </span>
+              </PanelTitle>
+              <LatencyTrendChart data={trend} />
+            </Panel>
+
+            {/* Recent logs */}
+            <Panel>
+              <PanelTitle>Recent Logs</PanelTitle>
+              <RecentLogsTable logs={recentLogs} />
+            </Panel>
+          </>
+        )}
+      </main>
     </ProtectedRoute>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const th: React.CSSProperties = { padding: "8px 12px", fontWeight: 500 };
-const td: React.CSSProperties = { padding: "9px 12px" };
-const card: React.CSSProperties = {
-  background: "#1a1a1a",
-  border: "1px solid #2a2a2a",
-  borderRadius: 8,
-  padding: 24,
-  marginBottom: 28,
-};
-const sectionHeading: React.CSSProperties = {
-  margin: "0 0 18px",
-  fontSize: 16,
-  fontWeight: 600,
-  color: "#eee",
-};
+const thClass = "px-3 py-2.5 text-[11px] font-semibold text-slate-600 uppercase tracking-[0.06em] text-left";
+const tdClass = "px-3 py-3";

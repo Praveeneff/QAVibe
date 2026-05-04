@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import type { RunSummary } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { usePermission } from "@/context/PermissionsContext";
@@ -21,36 +22,36 @@ function timeAgo(iso: string): string {
 }
 
 function PassRateCell({ rate, total }: { rate: number; total: number }) {
-  if (total === 0) return <span style={{ color: "#555" }}>—</span>;
-  const color = rate >= 80 ? "#4caf50" : rate >= 50 ? "#ff9800" : "#f44336";
-  return <span style={{ color, fontWeight: 600 }}>{rate}%</span>;
+  if (total === 0) return <span className="text-slate-500">—</span>;
+  return (
+    <span className={cn("font-semibold", rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-500" : "text-destructive")}>
+      {rate}%
+    </span>
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, { bg: string; fg: string }> = {
-    done:    { bg: "#0a3d0a",  fg: "#4caf50" },
-    running: { bg: "#1a2a3d",  fg: "#64b5f6" },
-    pending: { bg: "#2a2a2a",  fg: "#aaa" },
+  const variants: Record<string, string> = {
+    done:    "bg-emerald-950 text-emerald-400",
+    running: "bg-blue-950 text-blue-400",
+    pending: "bg-slate-800 text-muted-foreground",
   };
-  const { bg, fg } = colors[status] ?? { bg: "#2a2a2a", fg: "#aaa" };
   return (
-    <span style={{ padding: "2px 8px", borderRadius: 12, fontSize: 12, background: bg, color: fg }}>
+    <span className={cn("px-2 py-0.5 rounded-full text-xs", variants[status] ?? "bg-slate-800 text-muted-foreground")}>
       {status}
     </span>
   );
 }
 
-const ENV_COLORS: Record<string, { bg: string; fg: string }> = {
-  staging:    { bg: "#1a2a3d", fg: "#64b5f6" },
-  production: { bg: "#3d1a0a", fg: "#ff7043" },
-  dev:        { bg: "#2a1a3d", fg: "#ab47bc" },
-  qa:         { bg: "#0a3d2a", fg: "#26a69a" },
-};
-
 function EnvBadge({ env }: { env: string }) {
-  const { bg, fg } = ENV_COLORS[env] ?? { bg: "#222", fg: "#aaa" };
+  const variants: Record<string, string> = {
+    staging:    "bg-blue-950 text-blue-400",
+    production: "bg-orange-950 text-orange-400",
+    dev:        "bg-purple-950 text-purple-400",
+    qa:         "bg-teal-950 text-teal-400",
+  };
   return (
-    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 12, background: bg, color: fg }}>
+    <span className={cn("px-2 py-0.5 rounded text-xs", variants[env] ?? "bg-slate-800 text-muted-foreground")}>
       {env}
     </span>
   );
@@ -102,33 +103,33 @@ function RunRow({ run, canDelete }: { run: RunSummary; canDelete: boolean }) {
   }
 
   return (
-    <tr key={run.id} style={{ borderBottom: "1px solid #222" }}>
+    <tr className="border-b border-slate-800">
       {/* Run name + metadata */}
-      <td style={td}>
+      <td className={tdClass}>
         <div>{run.name}</div>
         {run.sourceRunName && (
-          <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+          <div className="text-[11px] text-slate-500 mt-0.5">
             Rerun of: {run.sourceRunName}
           </div>
         )}
         {run.creator && (
-          <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+          <div className="text-[11px] text-slate-500 mt-0.5">
             Started by {run.creator.name}
           </div>
         )}
         {rowError && (
-          <div style={{ fontSize: 11, color: "#f87171", marginTop: 4 }}>{rowError}</div>
+          <div className="text-[11px] text-red-400 mt-1">{rowError}</div>
         )}
         {(run.browser || run.buildVersion || run.device) && (
-          <div style={{ marginTop: 3, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="mt-1 flex gap-1.5 flex-wrap">
             {run.browser && (
-              <span style={{ fontSize: 11, color: "#666" }}>{run.browser}</span>
+              <span className="text-[11px] text-slate-400">{run.browser}</span>
             )}
             {run.device && (
-              <span style={{ fontSize: 11, color: "#555" }}>{run.device}</span>
+              <span className="text-[11px] text-slate-500">{run.device}</span>
             )}
             {run.buildVersion && (
-              <span style={{ fontSize: 11, color: "#555", fontFamily: "monospace" }}>
+              <span className="text-[11px] text-slate-500 font-mono">
                 {run.buildVersion}
               </span>
             )}
@@ -136,66 +137,55 @@ function RunRow({ run, canDelete }: { run: RunSummary; canDelete: boolean }) {
         )}
       </td>
 
-      <td style={td}><EnvBadge env={run.environment} /></td>
-      <td style={td}><StatusBadge status={run.status} /></td>
-      <td style={td}><PassRateCell rate={run.passRate} total={run.total} /></td>
+      <td className={tdClass}><EnvBadge env={run.environment} /></td>
+      <td className={tdClass}><StatusBadge status={run.status} /></td>
+      <td className={tdClass}><PassRateCell rate={run.passRate} total={run.total} /></td>
 
       {/* Result counts */}
-      <td style={{ ...td, fontSize: 13, color: "#aaa" }}>
+      <td className={cn(tdClass, "text-[13px] text-muted-foreground")}>
         {run.total > 0 ? (
           <>
-            <span style={{ color: "#4caf50" }}>✓ {run.resultCounts.pass}</span>
+            <span className="text-emerald-400">✓ {run.resultCounts.pass}</span>
             {"  "}
-            <span style={{ color: "#f44336" }}>✗ {run.resultCounts.fail}</span>
+            <span className="text-destructive">✗ {run.resultCounts.fail}</span>
             {"  "}
-            <span style={{ color: "#ff9800" }}>⊘ {run.resultCounts.blocked}</span>
+            <span className="text-amber-500">⊘ {run.resultCounts.blocked}</span>
             {"  "}
-            <span style={{ color: "#888" }}>— {run.resultCounts.skip}</span>
+            <span className="text-slate-400">— {run.resultCounts.skip}</span>
           </>
         ) : (
-          <span style={{ color: "#555" }}>no results</span>
+          <span className="text-slate-500">no results</span>
         )}
       </td>
 
-      <td style={{ ...td, color: "#666", fontSize: 13 }}>{timeAgo(run.createdAt)}</td>
+      <td className={cn(tdClass, "text-slate-400 text-[13px]")}>{timeAgo(run.createdAt)}</td>
 
       {/* Actions */}
-      <td style={{ ...td, whiteSpace: "nowrap" }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <td className={cn(tdClass, "whitespace-nowrap")}>
+        <div className="flex gap-2 items-center">
           {canRerun && (
             <button
               onClick={handleRerun}
               disabled={rerunning}
-              style={{
-                background: "transparent",
-                border: "1px solid #78350f",
-                color: rerunning ? "#666" : "#f59e0b",
-                borderRadius: 4,
-                padding: "3px 10px",
-                fontSize: 12,
-                cursor: rerunning ? "not-allowed" : "pointer",
-                fontWeight: 600,
-              }}
+              className={cn(
+                "border border-amber-900 rounded px-2.5 py-0.5 text-xs font-semibold transition-colors",
+                rerunning ? "text-slate-500 cursor-not-allowed" : "text-amber-400 hover:bg-amber-950 cursor-pointer"
+              )}
             >
               {rerunning ? "…" : "↺ Rerun"}
             </button>
           )}
-          <Link href={`/runs/${run.id}`} style={{ color: "#0070f3", textDecoration: "none", fontSize: 14 }}>
+          <Link href={`/runs/${run.id}`} className="text-primary hover:underline text-sm no-underline">
             View
           </Link>
           {canDelete && (
             <button
               onClick={handleDelete}
               disabled={deleting}
-              style={{
-                background: "transparent",
-                border: "1px solid #5c2020",
-                color: deleting ? "#555" : "#f87171",
-                borderRadius: 4,
-                padding: "3px 10px",
-                fontSize: 12,
-                cursor: deleting ? "not-allowed" : "pointer",
-              }}
+              className={cn(
+                "border border-red-900 rounded px-2.5 py-0.5 text-xs transition-colors",
+                deleting ? "text-slate-500 cursor-not-allowed" : "text-red-400 hover:bg-red-950 cursor-pointer"
+              )}
             >
               {deleting ? "…" : "Delete"}
             </button>
@@ -210,15 +200,13 @@ function RunRow({ run, canDelete }: { run: RunSummary; canDelete: boolean }) {
 
 export default function RunsClient({ runs }: { runs: RunSummary[] }) {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
   const { can } = usePermission();
   const router = useRouter();
 
   const visibleRuns = useMemo(() => {
     if (can("view_all", "test_run")) {
-      return runs; // Admin or tester with view_all
+      return runs;
     }
-    // Tester with view_own only
     const userId = user?.id;
     return runs.filter(run => run.assignedTo === userId);
   }, [runs, can, user?.id]);
@@ -228,33 +216,25 @@ export default function RunsClient({ runs }: { runs: RunSummary[] }) {
   return (
     <>
       {can("create", "test_run") && (
-        <div style={{ marginBottom: 16, textAlign: "right" }}>
+        <div className="mb-4 text-right">
           <button
             onClick={() => router.push("/test-cases")}
-            style={{
-              padding: "8px 16px",
-              background: "#0070f3",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              fontSize: 14,
-              cursor: "pointer",
-            }}
+            className="px-4 py-2 bg-primary text-primary-foreground border-none rounded text-sm cursor-pointer hover:bg-primary/90 transition-colors"
           >
             + New Run
           </button>
         </div>
       )}
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <table className="w-full border-collapse text-sm">
         <thead>
-          <tr style={{ borderBottom: "1px solid #333", textAlign: "left", color: "#aaa" }}>
-            <th style={th}>Run Name</th>
-            <th style={th}>Env</th>
-            <th style={th}>Status</th>
-            <th style={th}>Pass Rate</th>
-            <th style={th}>Results</th>
-            <th style={th}>When</th>
-            <th style={th}></th>
+          <tr className="border-b border-border text-left text-muted-foreground">
+            <th className={thClass}>Run Name</th>
+            <th className={thClass}>Env</th>
+            <th className={thClass}>Status</th>
+            <th className={thClass}>Pass Rate</th>
+            <th className={thClass}>Results</th>
+            <th className={thClass}>When</th>
+            <th className={thClass}></th>
           </tr>
         </thead>
         <tbody>
@@ -267,5 +247,5 @@ export default function RunsClient({ runs }: { runs: RunSummary[] }) {
   );
 }
 
-const th: React.CSSProperties = { padding: "8px 12px", fontWeight: 500 };
-const td: React.CSSProperties = { padding: "10px 12px" };
+const thClass = "px-3 py-2 font-medium";
+const tdClass = "px-3 py-2.5";

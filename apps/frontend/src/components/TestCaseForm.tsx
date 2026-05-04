@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
   getSuites,
   checkDuplicate,
+  getActiveProjectId,
   type TestCase,
   type TestCasePayload,
   type TestSuite,
@@ -12,10 +14,10 @@ import {
 } from "../lib/api";
 
 interface Props {
-  initial?:       TestCase;
+  initial?:        TestCase;
   initialSuiteId?: string | null;
-  excludeId?:     string;
-  onSubmit:       (data: TestCasePayload) => Promise<unknown>;
+  excludeId?:      string;
+  onSubmit:        (data: TestCasePayload) => Promise<unknown>;
 }
 
 const CATEGORIES = [
@@ -44,7 +46,6 @@ function defaultFields(initial?: TestCase, initialSuiteId?: string | null): Test
   };
 }
 
-// Parse a JSON steps string → string[]. Gracefully handles plain text and empty values.
 function parseSteps(raw?: string): string[] {
   if (!raw?.trim()) return [""];
   try {
@@ -56,18 +57,13 @@ function parseSteps(raw?: string): string[] {
 
 // ── Steps editor ──────────────────────────────────────────────────────────────
 
-function StepsEditor({
-  steps,
-  onChange,
-  onBlur,
-}: {
+function StepsEditor({ steps, onChange, onBlur }: {
   steps:    string[];
   onChange: (steps: string[]) => void;
   onBlur:   () => void;
 }) {
   function update(idx: number, value: string) {
-    const next = steps.map((s, i) => (i === idx ? value : s));
-    onChange(next);
+    onChange(steps.map((s, i) => (i === idx ? value : s)));
   }
 
   function addStep() {
@@ -100,17 +96,10 @@ function StepsEditor({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+    <div className="flex flex-col gap-1.5 mt-1">
       {steps.map((step, idx) => (
-        <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{
-            fontSize: 11,
-            color: "#555",
-            minWidth: 20,
-            textAlign: "right",
-            flexShrink: 0,
-            userSelect: "none",
-          }}>
+        <div key={idx} className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 min-w-5 text-right shrink-0 select-none">
             {idx + 1}.
           </span>
           <input
@@ -120,46 +109,26 @@ function StepsEditor({
             onBlur={onBlur}
             onKeyDown={(e) => handleKeyDown(e, idx)}
             placeholder={`Step ${idx + 1}…`}
-            style={{ ...stepInputStyle, flex: 1 }}
+            className="flex-1 px-2 py-1 text-[13px] bg-card text-foreground border border-slate-600 rounded focus:outline-none focus:border-primary transition-colors"
           />
           <button
             type="button"
             onClick={() => removeStep(idx)}
             disabled={steps.length === 1 && step === ""}
             title="Remove step"
-            style={{
-              background: "none",
-              border: "1px solid #333",
-              color: "#666",
-              borderRadius: 3,
-              width: 24,
-              height: 24,
-              cursor: steps.length === 1 && step === "" ? "not-allowed" : "pointer",
-              fontSize: 14,
-              lineHeight: 1,
-              flexShrink: 0,
-              opacity: steps.length === 1 && step === "" ? 0.3 : 1,
-            }}
+            className={cn(
+              "border border-border text-slate-500 rounded w-6 h-6 cursor-pointer text-sm leading-none shrink-0 hover:text-red-400 hover:border-red-800 transition-colors",
+              steps.length === 1 && step === "" ? "opacity-30 cursor-not-allowed" : ""
+            )}
           >
             ×
           </button>
         </div>
       ))}
-
       <button
         type="button"
         onClick={addStep}
-        style={{
-          alignSelf: "flex-start",
-          marginTop: 2,
-          background: "none",
-          border: "1px dashed #333",
-          color: "#666",
-          borderRadius: 4,
-          padding: "3px 10px",
-          fontSize: 12,
-          cursor: "pointer",
-        }}
+        className="self-start mt-0.5 border border-dashed border-border text-slate-500 rounded px-2.5 py-0.5 text-xs cursor-pointer hover:text-foreground hover:border-slate-500 transition-colors"
       >
         + Add step
       </button>
@@ -170,24 +139,12 @@ function StepsEditor({
 // ── Similarity badge ──────────────────────────────────────────────────────────
 
 function SimilarityBadge({ level }: { level: "high" | "medium" }) {
-  const styles = {
-    high:   { bg: "#3d0a0a", fg: "#f87171", border: "#7f2020" },
-    medium: { bg: "#3d2a0a", fg: "#fb923c", border: "#92400e" },
+  const classes = {
+    high:   "bg-red-950 text-red-400 border-red-800",
+    medium: "bg-amber-950/40 text-orange-400 border-amber-800",
   };
-  const { bg, fg, border } = styles[level];
   return (
-    <span style={{
-      fontSize: 10,
-      fontWeight: 700,
-      textTransform: "uppercase" as const,
-      letterSpacing: "0.06em",
-      padding: "2px 7px",
-      borderRadius: 4,
-      background: bg,
-      color: fg,
-      border: `1px solid ${border}`,
-      flexShrink: 0,
-    }}>
+    <span className={cn("text-[10px] font-bold uppercase tracking-[0.06em] px-1.5 py-0.5 rounded border shrink-0", classes[level])}>
       {level}
     </span>
   );
@@ -195,94 +152,55 @@ function SimilarityBadge({ level }: { level: "high" | "medium" }) {
 
 // ── Duplicate warning banner ──────────────────────────────────────────────────
 
-function DuplicateWarning({
-  duplicates,
-  onSaveAnyway,
-  onDiscard,
-}: {
+function DuplicateWarning({ duplicates, onSaveAnyway, onDiscard }: {
   duplicates:   DuplicateMatch[];
   onSaveAnyway: () => void;
   onDiscard:    () => void;
 }) {
   return (
-    <div style={{
-      background: "#1c1208",
-      border: "1px solid #92400e",
-      borderRadius: 6,
-      padding: "14px 16px",
-      marginTop: 8,
-    }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#fb923c", marginBottom: 10 }}>
+    <div className="bg-amber-950/20 border border-amber-700 rounded-md px-4 py-3.5 mt-2">
+      <div className="text-[13px] font-semibold text-orange-400 mb-2.5">
         ⚠ Similar test cases found:
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+      <div className="flex flex-col gap-2 mb-3">
         {duplicates.map((dup) => (
-          <div key={dup.id} style={{
-            background: "#111",
-            border: "1px solid #2a2a2a",
-            borderRadius: 5,
-            padding: "8px 10px",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <div key={dup.id} className="bg-background border border-slate-800 rounded px-2.5 py-2">
+            <div className="flex items-center gap-2 mb-1">
               <SimilarityBadge level={dup.similarity} />
-              <span style={{
-                fontSize: 13,
-                color: "#eee",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                flex: 1,
-              }}>
+              <span className="text-[13px] text-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1">
                 {dup.title.length > 60 ? dup.title.slice(0, 60) + "…" : dup.title}
               </span>
               <a
                 href={`/test-cases/${dup.id}`}
                 target="_blank"
                 rel="noreferrer"
-                style={{ fontSize: 12, color: "#60a5fa", textDecoration: "none", flexShrink: 0 }}
+                className="text-xs text-blue-400 no-underline shrink-0 hover:underline"
               >
                 View
               </a>
             </div>
-            <div style={{ fontSize: 12, color: "#666" }}>{dup.reason}</div>
+            <div className="text-xs text-slate-500">{dup.reason}</div>
           </div>
         ))}
       </div>
 
-      <p style={{ fontSize: 12, color: "#888", margin: "0 0 10px" }}>
+      <p className="text-xs text-slate-400 m-0 mb-2.5">
         This may be a duplicate. You can still save if it&apos;s intentional.
       </p>
 
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="flex gap-2">
         <button
           type="button"
           onClick={onSaveAnyway}
-          style={{
-            padding: "6px 14px",
-            fontSize: 12,
-            background: "#0070f3",
-            color: "#fff",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
+          className="px-3.5 py-1.5 text-xs bg-primary text-primary-foreground border-none rounded cursor-pointer font-semibold hover:bg-primary/90 transition-colors"
         >
           Save anyway
         </button>
         <button
           type="button"
           onClick={onDiscard}
-          style={{
-            padding: "6px 14px",
-            fontSize: 12,
-            background: "transparent",
-            color: "#888",
-            border: "1px solid #333",
-            borderRadius: 4,
-            cursor: "pointer",
-          }}
+          className="px-3.5 py-1.5 text-xs bg-transparent text-slate-400 border border-border rounded cursor-pointer hover:text-foreground transition-colors"
         >
           Discard
         </button>
@@ -293,15 +211,11 @@ function DuplicateWarning({
 
 // ── Flatten suites tree ───────────────────────────────────────────────────────
 
-const flattenSuites = (
-  list: TestSuite[], depth = 0,
-): { id: string; name: string; depth: number }[] => {
+const flattenSuites = (list: TestSuite[], depth = 0): { id: string; name: string; depth: number }[] => {
   const result: { id: string; name: string; depth: number }[] = [];
   for (const s of list) {
     result.push({ id: s.id, name: s.name, depth });
-    if (s.children?.length) {
-      result.push(...flattenSuites(s.children, depth + 1));
-    }
+    if (s.children?.length) result.push(...flattenSuites(s.children, depth + 1));
   }
   return result;
 };
@@ -314,24 +228,19 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
   const [loading, setLoading] = useState(false);
   const [suites,  setSuites]  = useState<TestSuite[]>([]);
 
-  const [fields, setFields] = useState<TestCasePayload>(() =>
-    defaultFields(initial, initialSuiteId),
-  );
-
+  const [fields, setFields] = useState<TestCasePayload>(() => defaultFields(initial, initialSuiteId));
   const flatSuites = flattenSuites(suites);
 
-  // ── Steps editor state ───────────────────────────────────────────────────
   const [stepsArr, setStepsArr] = useState<string[]>(() =>
     parseSteps(defaultFields(initial, initialSuiteId).steps),
   );
 
-  // ── Duplicate check state ────────────────────────────────────────────────
-  const [dupChecking, setDupChecking]   = useState(false);
-  const [dupResult,   setDupResult]     = useState<DuplicateMatch[] | null>(null);
+  const [dupChecking, setDupChecking] = useState(false);
+  const [dupResult,   setDupResult]   = useState<DuplicateMatch[] | null>(null);
   const skipDupGate = useRef(false);
 
   useEffect(() => {
-    getSuites().then(setSuites).catch(console.error);
+    getSuites(getActiveProjectId() ?? undefined).then(setSuites).catch(console.error);
   }, []);
 
   function set(key: keyof TestCasePayload, value: string | null) {
@@ -345,29 +254,25 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
   function handleStepsChange(arr: string[]) {
     setStepsArr(arr);
     const filtered = arr.filter((s) => s.trim() !== "");
-    const json = filtered.length > 0 ? JSON.stringify(filtered) : "";
-    set("steps", json);
+    set("steps", filtered.length > 0 ? JSON.stringify(filtered) : "");
   }
 
   async function handleStepsBlur() {
     const title = fields.title?.trim() ?? "";
     const steps = fields.steps?.trim() ?? "";
-    if (title.length <= 10 || steps.length <= 20) return;
-    if (dupResult !== null) return;
-
+    if (title.length <= 10 || steps.length <= 20 || dupResult !== null) return;
     setDupChecking(true);
     try {
       const result = await checkDuplicate({
-        title,
-        steps,
-        suiteId:   fields.suiteId ?? undefined,
-        excludeId: excludeId      ?? undefined,
+        title, steps,
+        suiteId: fields.suiteId ?? undefined,
+        excludeId: excludeId ?? undefined,
       });
       if (result.isDuplicate && result.duplicates.length > 0) {
         setDupResult(result.duplicates);
       }
     } catch {
-      // Silent — never block saving on detection failure
+      // Silent
     } finally {
       setDupChecking(false);
     }
@@ -375,11 +280,7 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-
-    if (dupResult && dupResult.length > 0 && !skipDupGate.current) {
-      return;
-    }
-
+    if (dupResult && dupResult.length > 0 && !skipDupGate.current) return;
     setError("");
     setLoading(true);
     skipDupGate.current = false;
@@ -400,17 +301,9 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
     setError("");
     setLoading(true);
     onSubmit(fields)
-      .then(() => {
-        router.push("/test-cases");
-        router.refresh();
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      })
-      .finally(() => {
-        setLoading(false);
-        skipDupGate.current = false;
-      });
+      .then(() => { router.push("/test-cases"); router.refresh(); })
+      .catch((err: unknown) => { setError(err instanceof Error ? err.message : "Something went wrong"); })
+      .finally(() => { setLoading(false); skipDupGate.current = false; });
   }
 
   function handleDiscard() {
@@ -422,47 +315,28 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 560 }}>
-      {error && <p style={{ color: "red" }}>{error}</p>}
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 max-w-[560px]">
+      {error && <p className="text-destructive">{error}</p>}
 
       {initial?.tcId && (
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, color: "#666" }}>Test Case ID</span>
-          <span style={{
-            fontSize: 13,
-            fontFamily: "monospace",
-            fontWeight: 700,
-            color: "#64b5f6",
-            background: "#0d1f33",
-            border: "1px solid #1e3a5f",
-            borderRadius: 4,
-            padding: "3px 10px",
-          }}>
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-[11px] text-slate-500">Test Case ID</span>
+          <span className="text-[13px] font-mono font-bold text-blue-400 bg-blue-950/30 border border-blue-900 rounded px-2.5 py-0.5">
             {initial.tcId}
           </span>
         </div>
       )}
 
-      {/* ── SECTION 1: IDENTIFICATION ── */}
-      <div style={sectionLabelStyle}>Identification</div>
+      <div className={sectionLabelClass}>Identification</div>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Title *
-        <input
-          required
-          value={fields.title}
-          onChange={(e) => set("title", e.target.value)}
-          style={inputStyle}
-        />
+        <input required value={fields.title} onChange={(e) => set("title", e.target.value)} className={inputClass} />
       </label>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Suite
-        <select
-          value={fields.suiteId ?? ""}
-          onChange={(e) => set("suiteId", e.target.value || null)}
-          style={inputStyle}
-        >
+        <select value={fields.suiteId ?? ""} onChange={(e) => set("suiteId", e.target.value || null)} className={inputClass}>
           <option value="">No suite</option>
           {flatSuites.map((s) => (
             <option key={s.id} value={s.id}>
@@ -473,54 +347,50 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
       </label>
 
       <div>
-        <label style={labelStyle}>Tags</label>
+        <label className="block text-sm">Tags</label>
         <input
           type="text"
           value={fields.tags ?? ""}
           onChange={(e) => setFields(f => ({ ...f, tags: e.target.value }))}
           placeholder="smoke, login, critical (comma separated)"
-          style={inputStyle}
+          className={inputClass}
         />
-        <div style={{ fontSize: 11, color: "#555", marginTop: 4 }}>
-          Separate tags with commas
-        </div>
+        <div className="text-[11px] text-slate-500 mt-1">Separate tags with commas</div>
       </div>
 
-      {/* ── SECTION 2: CLASSIFICATION ── */}
-      <div style={sectionLabelStyle}>Classification</div>
+      <div className={sectionLabelClass}>Classification</div>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Category *
-        <select value={fields.category} onChange={(e) => set("category", e.target.value)} style={inputStyle}>
+        <select value={fields.category} onChange={(e) => set("category", e.target.value)} className={inputClass}>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
           ))}
         </select>
       </label>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Execution Type *
-        <select value={fields.executionType} onChange={(e) => set("executionType", e.target.value)} style={inputStyle}>
+        <select value={fields.executionType} onChange={(e) => set("executionType", e.target.value)} className={inputClass}>
           {EXECUTION_TYPES.map((t) => (
             <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
           ))}
         </select>
       </label>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <label style={labelStyle}>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block text-sm">
           Priority *
-          <select value={fields.priority} onChange={(e) => set("priority", e.target.value)} style={inputStyle}>
+          <select value={fields.priority} onChange={(e) => set("priority", e.target.value)} className={inputClass}>
             <option value="P1">P1 — Critical</option>
             <option value="P2">P2 — High</option>
             <option value="P3">P3 — Medium</option>
             <option value="P4">P4 — Low</option>
           </select>
         </label>
-
-        <label style={labelStyle}>
+        <label className="block text-sm">
           Severity *
-          <select value={fields.severity} onChange={(e) => set("severity", e.target.value)} style={inputStyle}>
+          <select value={fields.severity} onChange={(e) => set("severity", e.target.value)} className={inputClass}>
             <option value="critical">Critical</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
@@ -529,94 +399,74 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
         </label>
       </div>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Status
-        <select value={fields.status} onChange={(e) => set("status", e.target.value)} style={inputStyle}>
+        <select value={fields.status} onChange={(e) => set("status", e.target.value)} className={inputClass}>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="draft">Draft</option>
         </select>
       </label>
 
-      {/* ── SECTION 3: CONTENT ── */}
-      <div style={sectionLabelStyle}>Content</div>
+      <div className={sectionLabelClass}>Content</div>
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Description
-        <textarea
-          value={fields.description}
-          onChange={(e) => set("description", e.target.value)}
-          rows={3}
-          style={inputStyle}
-        />
+        <textarea value={fields.description} onChange={(e) => set("description", e.target.value)} rows={3} className={inputClass} />
       </label>
 
       <div>
-        <label style={labelStyle}>Preconditions</label>
+        <label className="block text-sm">Preconditions</label>
         <textarea
           rows={2}
           value={fields.preconditions ?? ""}
           onChange={(e) => setFields(f => ({ ...f, preconditions: e.target.value }))}
           placeholder="User must be logged out. Account must exist."
-          style={inputStyle}
+          className={inputClass}
         />
       </div>
 
       <div>
-        <span style={{ fontSize: 14, display: "block", marginBottom: 2 }}>Steps</span>
-        <StepsEditor
-          steps={stepsArr}
-          onChange={handleStepsChange}
-          onBlur={handleStepsBlur}
-        />
+        <span className="text-sm block mb-0.5">Steps</span>
+        <StepsEditor steps={stepsArr} onChange={handleStepsChange} onBlur={handleStepsBlur} />
       </div>
 
       {dupChecking && (
-        <div style={{ fontSize: 12, color: "#555", display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span>
+        <div className="text-xs text-slate-500 flex items-center gap-1.5">
+          <span className="animate-spin inline-block">⟳</span>
           Checking for duplicates…
         </div>
       )}
       {dupResult && dupResult.length > 0 && (
-        <DuplicateWarning
-          duplicates={dupResult}
-          onSaveAnyway={handleSaveAnyway}
-          onDiscard={handleDiscard}
-        />
+        <DuplicateWarning duplicates={dupResult} onSaveAnyway={handleSaveAnyway} onDiscard={handleDiscard} />
       )}
 
-      <label style={labelStyle}>
+      <label className="block text-sm">
         Expected Result
-        <textarea
-          value={fields.expectedResult}
-          onChange={(e) => set("expectedResult", e.target.value)}
-          rows={3}
-          style={inputStyle}
-        />
+        <textarea value={fields.expectedResult} onChange={(e) => set("expectedResult", e.target.value)} rows={3} className={inputClass} />
       </label>
 
-      {/* ── SECTION 4: AUTOMATION ── */}
       {(fields.executionType === "automated" || fields.executionType === "api") && (
         <div>
-          <div style={sectionLabelStyle}>Automation</div>
+          <div className={sectionLabelClass}>Automation</div>
           <div>
-            <label style={labelStyle}>Automation ID</label>
+            <label className="block text-sm">Automation ID</label>
             <input
               type="text"
               value={fields.automationId ?? ""}
               onChange={(e) => setFields(f => ({ ...f, automationId: e.target.value }))}
               placeholder="e.g. TC_LOGIN_001 or describe('Login', ...)"
-              style={inputStyle}
+              className={inputClass}
             />
           </div>
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button type="submit" disabled={loading} style={btnStyle}>
+      <div className="flex gap-2 mt-2">
+        <button type="submit" disabled={loading} className="px-4 py-2 text-sm bg-primary text-primary-foreground border-none rounded cursor-pointer hover:bg-primary/90 disabled:opacity-50 transition-colors">
           {loading ? "Saving…" : "Save"}
         </button>
-        <button type="button" onClick={() => router.push("/test-cases")} style={{ ...btnStyle, background: "#555" }}>
+        <button type="button" onClick={() => router.push("/test-cases")} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-sm font-medium transition-colors cursor-pointer">
           Cancel
         </button>
       </div>
@@ -624,51 +474,8 @@ export default function TestCaseForm({ initial, initialSuiteId, excludeId, onSub
   );
 }
 
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 14,
-};
+const sectionLabelClass =
+  "text-[11px] text-slate-500 uppercase tracking-[0.08em] mb-1 mt-2 border-b border-slate-900 pb-1.5";
 
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#666",
-  textTransform: "uppercase",
-  letterSpacing: "0.08em",
-  marginBottom: 4,
-  marginTop: 8,
-  borderBottom: "1px solid #1e1e1e",
-  paddingBottom: 6,
-};
-
-const inputStyle: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  marginTop: 4,
-  padding: "6px 8px",
-  fontSize: 14,
-  boxSizing: "border-box",
-  background: "#1a1a1a",
-  color: "#eee",
-  border: "1px solid #444",
-  borderRadius: 4,
-};
-
-const stepInputStyle: React.CSSProperties = {
-  padding: "5px 8px",
-  fontSize: 13,
-  boxSizing: "border-box",
-  background: "#1a1a1a",
-  color: "#eee",
-  border: "1px solid #333",
-  borderRadius: 4,
-};
-
-const btnStyle: React.CSSProperties = {
-  padding: "8px 18px",
-  fontSize: 14,
-  background: "#0070f3",
-  color: "#fff",
-  border: "none",
-  borderRadius: 4,
-  cursor: "pointer",
-};
+const inputClass =
+  "block w-full mt-1 px-2 py-1.5 text-sm box-border bg-card text-foreground border border-slate-600 rounded focus:outline-none focus:border-primary transition-colors";

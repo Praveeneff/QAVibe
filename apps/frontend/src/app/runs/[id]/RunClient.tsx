@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { updateTestResult, completeTestRun, uploadScreenshot, type TestRun, type TestResult } from "@/lib/api";
 import { getStoredToken } from "@/context/AuthContext";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -9,40 +10,32 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 const STATUSES = ["pending", "pass", "fail", "blocked", "skip"] as const;
 
 const SEVERITY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-const SEVERITY_COLORS: Record<string, { bg: string; fg: string }> = {
-  critical: { bg: "#3d0a0a", fg: "#f44336" },
-  high:     { bg: "#3d2a0a", fg: "#ff9800" },
-  medium:   { bg: "#0a1f3d", fg: "#64b5f6" },
-  low:      { bg: "#222",    fg: "#888" },
+
+const SEVERITY_CLASSES: Record<string, string> = {
+  critical: "bg-red-950/60 text-destructive border border-red-900",
+  high:     "bg-orange-950/40 text-amber-500 border border-amber-900",
+  medium:   "bg-blue-950/40 text-blue-400 border border-blue-900",
+  low:      "bg-slate-800 text-slate-400 border border-slate-700",
 };
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const { bg, fg } = SEVERITY_COLORS[severity] ?? { bg: "#222", fg: "#888" };
   return (
-    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, background: bg, color: fg, fontWeight: 600 }}>
+    <span className={cn("px-2 py-px rounded text-[11px] font-semibold", SEVERITY_CLASSES[severity] ?? "bg-slate-800 text-slate-400 border border-slate-700")}>
       {severity}
     </span>
   );
 }
 
-const ENV_COLORS: Record<string, { bg: string; fg: string }> = {
-  staging:    { bg: "#1a2a3d", fg: "#64b5f6" },
-  production: { bg: "#3d1a0a", fg: "#ff7043" },
-  dev:        { bg: "#2a1a3d", fg: "#ab47bc" },
-  qa:         { bg: "#0a3d2a", fg: "#26a69a" },
+const ENV_CLASSES: Record<string, string> = {
+  staging:    "bg-blue-950/40 text-blue-400",
+  production: "bg-orange-950/40 text-orange-400",
+  dev:        "bg-purple-950/40 text-purple-400",
+  qa:         "bg-teal-950/40 text-teal-400",
 };
 
-function EnvPill({ label, color }: { label: string; color: { bg: string; fg: string } }) {
+function EnvPill({ label }: { label: string }) {
   return (
-    <span style={{
-      padding: "3px 10px",
-      borderRadius: 4,
-      fontSize: 12,
-      fontWeight: 600,
-      background: color.bg,
-      color: color.fg,
-      letterSpacing: "0.03em",
-    }}>
+    <span className={cn("px-2.5 py-[3px] rounded text-xs font-semibold tracking-[0.03em]", ENV_CLASSES[label.toLowerCase()] ?? "bg-slate-800 text-slate-400")}>
       {label}
     </span>
   );
@@ -50,37 +43,41 @@ function EnvPill({ label, color }: { label: string; color: { bg: string; fg: str
 
 function MetaPill({ label, icon, mono }: { label: string; icon: string; mono?: boolean }) {
   return (
-    <span style={{
-      padding: "3px 10px",
-      borderRadius: 4,
-      fontSize: 12,
-      background: "#1e1e1e",
-      color: "#aaa",
-      fontFamily: mono ? "monospace" : undefined,
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5,
-    }}>
-      <span style={{ fontSize: 11 }}>{icon}</span>
+    <span className={cn("px-2.5 py-[3px] rounded text-xs bg-card text-muted-foreground inline-flex items-center gap-1.5", mono && "font-mono")}>
+      <span className="text-[11px]">{icon}</span>
       {label}
     </span>
   );
 }
 
-const statusColor: Record<string, string> = {
-  pass:    "#4caf50",
-  fail:    "#f44336",
-  blocked: "#ff9800",
-  skip:    "#888",
-  pending: "#555",
+// Tailwind variant maps for status
+const STATUS_TEXT: Record<string, string> = {
+  pass:    "text-emerald-400",
+  fail:    "text-destructive",
+  blocked: "text-amber-500",
+  skip:    "text-slate-400",
+  pending: "text-slate-500",
 };
-
-const statusBg: Record<string, string> = {
-  pass:    "#0a2e0a",
-  fail:    "#2e0a0a",
-  blocked: "#2e1a00",
-  skip:    "#1a1a1a",
-  pending: "#111",
+const STATUS_BG_ACTIVE: Record<string, string> = {
+  pass:    "bg-emerald-950/40",
+  fail:    "bg-red-950/40",
+  blocked: "bg-amber-950/30",
+  skip:    "bg-slate-800",
+  pending: "bg-slate-900",
+};
+const STATUS_BORDER_ACTIVE: Record<string, string> = {
+  pass:    "border-emerald-700",
+  fail:    "border-red-800",
+  blocked: "border-amber-700",
+  skip:    "border-slate-700",
+  pending: "border-slate-800",
+};
+const STATUS_BORDER_L: Record<string, string> = {
+  pass:    "border-l-emerald-500",
+  fail:    "border-l-red-500",
+  blocked: "border-l-amber-500",
+  skip:    "border-l-slate-500",
+  pending: "border-l-slate-700",
 };
 
 function summary(run: TestRun) {
@@ -102,7 +99,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleStatusChange(resultId: string, status: string) {
-    const updated = await updateTestResult(run.id, resultId, status, undefined, getStoredToken() ?? "");
+    const updated = await updateTestResult(run.id, resultId, status, undefined, getStoredToken() ?? "", run.projectId);
     setRun((prev) => ({
       ...prev,
       results: prev.results.map((r) => (r.id === resultId ? { ...r, status: updated.status } : r)),
@@ -112,7 +109,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
 
   async function handleNotesChange(resultId: string, notes: string) {
     const current = run.results.find((r) => r.id === resultId);
-    const updated = await updateTestResult(run.id, resultId, current?.status ?? "pending", notes, getStoredToken() ?? "");
+    const updated = await updateTestResult(run.id, resultId, current?.status ?? "pending", notes, getStoredToken() ?? "", run.projectId);
     setRun((prev) => ({
       ...prev,
       results: prev.results.map((r) => (r.id === resultId ? { ...r, notes: updated.notes } : r)),
@@ -164,7 +161,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
   async function handleComplete() {
     if (!confirm("Mark this run as done?")) return;
     setCompleting(true);
-    await completeTestRun(run.id);
+    await completeTestRun(run.id, run.projectId);
     setRun((prev) => ({ ...prev, status: "done" }));
     setCompleting(false);
   }
@@ -177,32 +174,43 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
   const panel = activeResult;
 
   return (
-    <div style={{ display: "flex", gap: 0, alignItems: "flex-start", minHeight: "100vh" }}>
+    <div className="flex gap-0 items-start min-h-screen">
       {/* Main content */}
-      <div style={{ flex: 1, minWidth: 0, paddingRight: panel ? 16 : 0 }}>
+      <div className={cn("flex-1 min-w-0", panel && "pr-4")}>
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
+        <div className="mb-6">
           <button
             onClick={() => router.push("/test-cases")}
-            style={{ background: "none", border: "none", color: "#0070f3", cursor: "pointer", fontSize: 14, padding: 0, marginBottom: 12 }}
+            className="bg-transparent border-none text-primary cursor-pointer text-sm p-0 mb-3"
           >
             ← Back to Test Cases
           </button>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div className="flex items-center justify-between">
             <div>
-              <h1 style={{ margin: 0 }}>{run.name}</h1>
-              <span style={{ fontSize: 13, color: "#888" }}>
-                Status: <span style={{ color: run.status === "done" ? "#4caf50" : "#ffd966" }}>{run.status}</span>
+              <h1 className="m-0">{run.name}</h1>
+              <span className="text-[13px] text-slate-400">
+                Status:{" "}
+                <span className={run.status === "done" ? "text-emerald-400" : "text-yellow-300"}>
+                  {run.status}
+                </span>
               </span>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="flex gap-2 items-center">
               {canRerun && (
-                <button onClick={handleRerun} disabled={rerunning} style={rerunBtnStyle}>
+                <button
+                  onClick={handleRerun}
+                  disabled={rerunning}
+                  className={cn(rerunBtnClass, rerunning && "opacity-50 cursor-not-allowed")}
+                >
                   {rerunning ? "Creating rerun…" : `↺ Rerun Failed (${failedCount})`}
                 </button>
               )}
               {run.status !== "done" && (
-                <button onClick={handleComplete} disabled={completing} style={completeBtnStyle}>
+                <button
+                  onClick={handleComplete}
+                  disabled={completing}
+                  className={cn(completeBtnClass, completing && "opacity-50 cursor-not-allowed")}
+                >
                   {completing ? "Completing…" : "✓ Complete Run"}
                 </button>
               )}
@@ -210,21 +218,13 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
           </div>
 
           {rerunError && (
-            <div style={{
-              marginTop: 10,
-              padding: "8px 14px",
-              background: "#2d1414",
-              border: "1px solid #5c2020",
-              borderRadius: 6,
-              color: "#f87171",
-              fontSize: 13,
-            }}>
+            <div className="mt-2.5 px-3.5 py-2 bg-destructive/10 border border-red-900 rounded-md text-red-400 text-[13px]">
               {rerunError}
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <EnvPill label={run.environment} color={ENV_COLORS[run.environment] ?? { bg: "#222", fg: "#aaa" }} />
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <EnvPill label={run.environment} />
             {run.browser && <MetaPill label={run.browser} icon="🌐" />}
             {run.device  && <MetaPill label={run.device}  icon="📱" />}
             {run.buildVersion && <MetaPill label={run.buildVersion} icon="🏷" mono />}
@@ -239,40 +239,37 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
           const failed = run.results.filter(r => r.status === "fail").length;
           const pct = total ? Math.round((done / total) * 100) : 0;
           return (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ height: 8, background: "#1e1e1e", borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
-                <div style={{
-                  height: "100%",
-                  width: `${pct}%`,
-                  background: failed > 0 ? "#ef4444" : "#22c55e",
-                  borderRadius: 4,
-                  transition: "width 0.3s ease",
-                }} />
+            <div className="mb-5">
+              <div className="h-2 bg-card rounded overflow-hidden mb-2">
+                <div
+                  className={cn("h-full rounded transition-[width]", failed > 0 ? "bg-red-500" : "bg-emerald-500")}
+                  style={{ width: `${pct}%` }}
+                />
               </div>
-              <div style={{ display: "flex", gap: 16, fontSize: 13, flexWrap: "wrap" }}>
-                <span style={{ color: "#888" }}>{pct}% complete</span>
-                <span style={{ color: "#22c55e" }}>✓ {passed} passed</span>
-                <span style={{ color: "#ef4444" }}>✗ {failed} failed</span>
-                <span style={{ color: "#888" }}>{total - done} remaining</span>
+              <div className="flex gap-4 text-[13px] flex-wrap">
+                <span className="text-slate-400">{pct}% complete</span>
+                <span className="text-emerald-400">✓ {passed} passed</span>
+                <span className="text-destructive">✗ {failed} failed</span>
+                <span className="text-slate-400">{total - done} remaining</span>
               </div>
             </div>
           );
         })()}
 
         {run.status !== "done" && (
-          <p style={{ color: "#444", fontSize: 12, marginBottom: 16, fontStyle: "italic" }}>
+          <p className="text-slate-700 text-xs mb-4 italic">
             💡 Click a row to open the detail panel. Use the status dropdown to mark results.
           </p>
         )}
 
         {/* Results table */}
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <table className="w-full border-collapse text-sm">
           <thead>
-            <tr style={{ borderBottom: "1px solid #333", textAlign: "left", color: "#aaa" }}>
-              <th style={th}>Test Case</th>
-              <th style={th}>Severity</th>
-              <th style={th}>Status</th>
-              <th style={th}>📎</th>
+            <tr className="border-b border-border text-left text-muted-foreground">
+              <th className={thClass}>Test Case</th>
+              <th className={thClass}>Severity</th>
+              <th className={thClass}>Status</th>
+              <th className={thClass}>📎</th>
             </tr>
           </thead>
           <tbody>
@@ -283,61 +280,40 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
               )
               .map((result) => {
                 const isActive = panel?.id === result.id;
+                const statusText = STATUS_TEXT[result.status] ?? "text-slate-400";
+                const statusBorderL = STATUS_BORDER_L[result.status] ?? "border-l-slate-700";
                 return (
                   <tr
                     key={result.id}
                     onClick={() => setActiveResult(isActive ? null : result)}
-                    style={{
-                      borderBottom: "1px solid #222",
-                      borderLeft: `3px solid ${statusColor[result.status] ?? "#555"}`,
-                      background: isActive ? "#181f28" : "transparent",
-                      cursor: "pointer",
-                      transition: "background 0.15s",
-                    }}
+                    className={cn(
+                      "border-b border-slate-900 border-l-[3px] cursor-pointer transition-colors",
+                      statusBorderL,
+                      isActive ? "bg-blue-950/20" : "bg-transparent hover:bg-slate-900/40",
+                    )}
                   >
-                    <td style={td}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span style={{
-                          color: "#60a5fa",
-                          fontSize: 13,
-                          cursor: "pointer",
-                          textDecoration: "underline",
-                          textDecorationColor: "#1e3a5f",
-                          textUnderlineOffset: 3,
-                        }}>
+                    <td className={tdClass}>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-blue-400 text-[13px] underline decoration-blue-900 underline-offset-[3px]">
                           {result.testCase.title}
                         </span>
-                        <span style={{ fontSize: 11, color: "#444", fontStyle: "italic" }}>
-                          click to open details →
-                        </span>
+                        <span className="text-[11px] text-slate-600 italic">click to open details →</span>
                       </div>
                     </td>
-                    <td style={td}><SeverityBadge severity={result.testCase.severity} /></td>
-                    <td style={td}>
-                      <span style={{
-                        display: "inline-block",
-                        padding: "2px 10px",
-                        borderRadius: 4,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        background: statusBg[result.status] ?? "#111",
-                        color: statusColor[result.status] ?? "#888",
-                        border: `1px solid ${statusColor[result.status] ?? "#333"}`,
-                      }}>
+                    <td className={tdClass}><SeverityBadge severity={result.testCase.severity} /></td>
+                    <td className={tdClass}>
+                      <span className={cn(
+                        "inline-block px-2.5 py-px rounded text-xs font-semibold border",
+                        STATUS_BG_ACTIVE[result.status] ?? "bg-slate-900",
+                        statusText,
+                        STATUS_BORDER_ACTIVE[result.status] ?? "border-slate-700",
+                      )}>
                         {result.status}
                       </span>
                     </td>
-                    <td style={td}>
+                    <td className={tdClass}>
                       {result.screenshotUrl && (
-                        <span title="Has screenshot" style={{
-                          fontSize: 11,
-                          color: "#64b5f6",
-                          background: "#0d1f33",
-                          border: "1px solid #1e3a5f",
-                          borderRadius: 4,
-                          padding: "2px 6px",
-                          fontWeight: 600,
-                        }}>
+                        <span className="text-[11px] text-blue-400 bg-blue-950/30 border border-blue-900 rounded px-1.5 py-px font-semibold">
                           📷 screenshot
                         </span>
                       )}
@@ -351,50 +327,27 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
 
       {/* Side panel */}
       {panel && (
-        <div style={{
-          width: 380,
-          flexShrink: 0,
-          position: "sticky",
-          top: 24,
-          maxHeight: "calc(100vh - 48px)",
-          overflowY: "auto",
-          background: "#111",
-          border: "1px solid #2a2a2a",
-          borderRadius: 8,
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-        }}>
+        <div className="w-[380px] shrink-0 sticky top-6 max-h-[calc(100vh-48px)] overflow-y-auto bg-[#111] border border-slate-800 rounded-lg p-5 flex flex-col gap-5">
           {/* Panel header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div style={{ flex: 1, marginRight: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div className="flex justify-between items-start">
+            <div className="flex-1 mr-3">
+              <div className="flex flex-col gap-1">
                 {panel.testCase.tcId && (
-                  <span style={{
-                    fontSize: 11,
-                    fontFamily: "monospace",
-                    color: "#64b5f6",
-                    background: "#0d1f33",
-                    border: "1px solid #1e3a5f",
-                    borderRadius: 3,
-                    padding: "1px 6px",
-                    alignSelf: "flex-start",
-                  }}>
+                  <span className="text-[11px] font-mono text-blue-400 bg-blue-950/30 border border-blue-900 rounded-[3px] px-1.5 py-px self-start">
                     {panel.testCase.tcId}
                   </span>
                 )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#eee", lineHeight: 1.4 }}>
+                <div className="text-[13px] font-bold text-foreground leading-snug">
                   {panel.testCase.title}
                 </div>
               </div>
-              <div style={{ marginTop: 6 }}>
+              <div className="mt-1.5">
                 <SeverityBadge severity={panel.testCase.severity} />
               </div>
             </div>
             <button
               onClick={() => setActiveResult(null)}
-              style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}
+              className="bg-transparent border-none text-slate-500 cursor-pointer text-lg leading-none p-0 hover:text-slate-300"
             >
               ✕
             </button>
@@ -402,45 +355,37 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
 
           {/* Status selector */}
           <div>
-            <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Status</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {STATUSES.map((s) => (
-                <button
-                  key={s}
-                  disabled={run.status === "done"}
-                  onClick={() => handleStatusChange(panel.id, s)}
-                  style={{
-                    padding: "4px 12px",
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: run.status === "done" ? "not-allowed" : "pointer",
-                    background: panel.status === s ? (statusBg[s] ?? "#1a1a1a") : "#1a1a1a",
-                    color: panel.status === s ? (statusColor[s] ?? "#888") : "#555",
-                    border: panel.status === s ? `1px solid ${statusColor[s] ?? "#333"}` : "1px solid #2a2a2a",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
+            <div className={panelLabelClass}>Status</div>
+            <div className="flex flex-wrap gap-1.5">
+              {STATUSES.map((s) => {
+                const isSelected = panel.status === s;
+                return (
+                  <button
+                    key={s}
+                    disabled={run.status === "done"}
+                    onClick={() => handleStatusChange(panel.id, s)}
+                    className={cn(
+                      "px-3 py-1 rounded text-xs font-semibold border transition-all",
+                      run.status === "done" ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                      isSelected
+                        ? cn(STATUS_BG_ACTIVE[s] ?? "bg-slate-800", STATUS_TEXT[s] ?? "text-slate-400", STATUS_BORDER_ACTIVE[s] ?? "border-slate-700")
+                        : "bg-card text-slate-500 border-slate-800 hover:border-slate-600",
+                    )}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Tags */}
           {panel.testCase.tags && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Tags</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className={panelLabelClass}>Tags</div>
+              <div className="flex flex-wrap gap-1.5">
                 {panel.testCase.tags.split(",").map((tag, i) => (
-                  <span key={i} style={{
-                    padding: "2px 8px",
-                    borderRadius: 10,
-                    fontSize: 11,
-                    background: "#1e1e1e",
-                    color: "#888",
-                    border: "1px solid #333",
-                  }}>
+                  <span key={i} className="px-2 py-px rounded-full text-[11px] bg-card text-slate-400 border border-border">
                     {tag.trim()}
                   </span>
                 ))}
@@ -451,17 +396,8 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
           {/* Preconditions */}
           {panel.testCase.preconditions && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Preconditions</div>
-              <div style={{
-                fontSize: 13,
-                color: "#f59e0b",
-                lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-                background: "#2a1f00",
-                border: "1px solid #3d2f00",
-                borderRadius: 4,
-                padding: "8px 10px",
-              }}>
+              <div className={panelLabelClass}>Preconditions</div>
+              <div className="text-[13px] text-amber-400 leading-relaxed whitespace-pre-wrap bg-amber-950/20 border border-amber-900 rounded px-2.5 py-2">
                 {panel.testCase.preconditions}
               </div>
             </div>
@@ -470,38 +406,27 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
           {/* Description */}
           {panel.testCase.description && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Description</div>
-              <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{panel.testCase.description}</div>
+              <div className={panelLabelClass}>Description</div>
+              <div className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{panel.testCase.description}</div>
             </div>
           )}
 
           {/* Steps */}
           {panel.testCase.steps && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Steps</div>
+              <div className={panelLabelClass}>Steps</div>
               {(() => {
                 let steps: string[] = [];
                 try {
                   const parsed = JSON.parse(panel.testCase.steps!);
-                  steps = Array.isArray(parsed)
-                    ? parsed
-                    : [String(parsed)];
+                  steps = Array.isArray(parsed) ? parsed : [String(parsed)];
                 } catch {
-                  steps = panel.testCase.steps!
-                    .split("\n")
-                    .filter(Boolean);
+                  steps = panel.testCase.steps!.split("\n").filter(Boolean);
                 }
                 return (
-                  <ol style={{ margin: 0, paddingLeft: 20 }}>
+                  <ol className="m-0 pl-5">
                     {steps.map((step, i) => (
-                      <li key={i} style={{
-                        fontSize: 13,
-                        color: "#ccc",
-                        marginBottom: 8,
-                        lineHeight: 1.6,
-                      }}>
-                        {step}
-                      </li>
+                      <li key={i} className="text-[13px] text-muted-foreground mb-2 leading-relaxed">{step}</li>
                     ))}
                   </ol>
                 );
@@ -512,24 +437,16 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
           {/* Expected Result */}
           {panel.testCase.expectedResult && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Expected Result</div>
-              <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{panel.testCase.expectedResult}</div>
+              <div className={panelLabelClass}>Expected Result</div>
+              <div className="text-[13px] text-muted-foreground leading-relaxed whitespace-pre-wrap">{panel.testCase.expectedResult}</div>
             </div>
           )}
 
           {/* Automation ID */}
           {panel.testCase.automationId && (
             <div>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Automation ID</div>
-              <div style={{
-                fontSize: 12,
-                color: "#64b5f6",
-                fontFamily: "monospace",
-                background: "#0d1f33",
-                border: "1px solid #1e3a5f",
-                borderRadius: 4,
-                padding: "6px 10px",
-              }}>
+              <div className={panelLabelClass}>Automation ID</div>
+              <div className="text-xs text-blue-400 font-mono bg-blue-950/30 border border-blue-900 rounded px-2.5 py-1.5">
                 {panel.testCase.automationId}
               </div>
             </div>
@@ -537,7 +454,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
 
           {/* Notes */}
           <div>
-            <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Actual Result / Notes</div>
+            <div className={panelLabelClass}>Actual Result / Notes</div>
             <textarea
               key={panel.id}
               defaultValue={panel.notes ?? ""}
@@ -545,35 +462,24 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
               onBlur={(e) => handleNotesChange(panel.id, e.target.value)}
               placeholder="Actual result / notes…"
               rows={3}
-              style={{
-                width: "100%",
-                background: "#1a1a1a",
-                color: "#eee",
-                border: "1px solid #333",
-                borderRadius: 4,
-                padding: "8px 10px",
-                fontSize: 13,
-                resize: "vertical",
-                boxSizing: "border-box",
-                fontFamily: "inherit",
-              }}
+              className="w-full bg-card text-foreground border border-border rounded px-2.5 py-2 text-[13px] resize-y box-border font-inherit focus:outline-none focus:border-primary transition-colors disabled:opacity-60"
             />
           </div>
 
           {/* Screenshot */}
           <div>
-            <div style={{ fontSize: 11, color: "#666", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Screenshot</div>
+            <div className={panelLabelClass}>Screenshot</div>
             {panel.screenshotUrl ? (
               <div>
                 <img
                   src={panel.screenshotUrl}
                   alt="Screenshot"
-                  style={{ width: "100%", borderRadius: 4, border: "1px solid #2a2a2a", marginBottom: 8 }}
+                  className="w-full rounded border border-slate-800 mb-2"
                 />
                 {run.status !== "done" && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    style={{ fontSize: 12, color: "#64b5f6", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    className="text-xs text-blue-400 bg-transparent border-none cursor-pointer p-0"
                   >
                     Replace screenshot
                   </button>
@@ -588,27 +494,18 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
                   const file = e.dataTransfer.files[0];
                   if (file) handleScreenshotUpload(file);
                 }}
-                style={{
-                  border: "2px dashed #2a2a2a",
-                  borderRadius: 6,
-                  padding: "24px 16px",
-                  textAlign: "center",
-                  color: "#555",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  transition: "border-color 0.15s",
-                }}
+                className="border-2 border-dashed border-slate-800 rounded-md py-6 px-4 text-center text-slate-500 text-[13px] cursor-pointer hover:border-slate-600 transition-colors"
               >
                 {uploading ? "Uploading…" : "Click or drag & drop an image"}
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: "#555" }}>No screenshot</div>
+              <div className="text-[13px] text-slate-500">No screenshot</div>
             )}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
-              style={{ display: "none" }}
+              className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleScreenshotUpload(file);
@@ -616,7 +513,7 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
               }}
             />
             {uploadError && (
-              <div style={{ marginTop: 6, fontSize: 12, color: "#f87171" }}>{uploadError}</div>
+              <div className="mt-1.5 text-xs text-red-400">{uploadError}</div>
             )}
           </div>
         </div>
@@ -625,25 +522,8 @@ export default function RunClient({ initialRun }: { initialRun: TestRun }) {
   );
 }
 
-const th: React.CSSProperties = { padding: "8px 12px", fontWeight: 500 };
-const td: React.CSSProperties = { padding: "10px 12px" };
-const completeBtnStyle: React.CSSProperties = {
-  padding: "8px 18px",
-  background: "#0070f3",
-  color: "#fff",
-  border: "none",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const rerunBtnStyle: React.CSSProperties = {
-  padding: "8px 18px",
-  background: "#1a1a1a",
-  color: "#f59e0b",
-  border: "1px solid #78350f",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-  fontWeight: 600,
-};
+const thClass = "px-3 py-2 font-medium";
+const tdClass = "px-3 py-2.5";
+const panelLabelClass = "text-[11px] text-slate-500 uppercase tracking-[0.08em] mb-1.5";
+const completeBtnClass = "px-4 py-2 bg-primary text-primary-foreground border-none rounded text-sm cursor-pointer hover:bg-primary/90 transition-colors";
+const rerunBtnClass = "px-4 py-2 bg-transparent text-amber-400 border border-amber-900 rounded text-sm cursor-pointer font-semibold hover:bg-amber-950/30 transition-colors";

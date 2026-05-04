@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { RunSummary } from "@/lib/api";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { handle401Redirect, type RunSummary } from "@/lib/api";
 
 export default function RerunNeededClient({ runs }: { runs: RunSummary[] }) {
   const router = useRouter();
-
-  // Per-run rerunning + error state keyed by run id
   const [rerunning, setRerunning] = useState<Record<string, boolean>>({});
   const [errors,    setErrors]    = useState<Record<string, string>>({});
 
@@ -18,6 +18,7 @@ export default function RerunNeededClient({ runs }: { runs: RunSummary[] }) {
       const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
       const res = await fetch(`${BASE_URL}/test-runs/${run.id}/rerun`, { method: "POST" });
       if (!res.ok) {
+        if (res.status === 401) { handle401Redirect(); return; }
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.message ?? "Failed to create rerun");
       }
@@ -31,14 +32,15 @@ export default function RerunNeededClient({ runs }: { runs: RunSummary[] }) {
 
   if (runs.length === 0) {
     return (
-      <p style={{ color: "#4caf50", fontSize: 14, margin: 0 }}>
-        All completed runs passed ✓
-      </p>
+      <div className="flex items-center gap-2 py-1 text-sm text-teal-500">
+        <span className="text-base">✓</span>
+        All completed runs passed
+      </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+    <div className="flex flex-col gap-1">
       {runs.slice(0, 5).map((run) => {
         const failCount    = run.resultCounts.fail    ?? 0;
         const blockedCount = run.resultCounts.blocked ?? 0;
@@ -48,57 +50,39 @@ export default function RerunNeededClient({ runs }: { runs: RunSummary[] }) {
         return (
           <div
             key={run.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 0",
-              borderBottom: "1px solid #222",
-              gap: 12,
-            }}
+            className="flex items-center justify-between px-3 py-3 rounded-lg border border-white/[0.04] hover:border-white/[0.08] hover:bg-white/[0.02] transition-colors gap-4"
           >
-            {/* Left: name + counts */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 14,
-                color: "#eee",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}>
+            <div className="flex-1 min-w-0">
+              <div className="text-[13px] font-medium text-slate-200 overflow-hidden text-ellipsis whitespace-nowrap mb-1">
                 {run.name}
               </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 3, fontSize: 12 }}>
+              <div className="flex gap-3 text-[11px]">
                 {failCount > 0 && (
-                  <span style={{ color: "#f44336" }}>✗ {failCount} failed</span>
+                  <span className="text-rose-400">✗ {failCount} failed</span>
                 )}
                 {blockedCount > 0 && (
-                  <span style={{ color: "#ff9800" }}>⊘ {blockedCount} blocked</span>
+                  <span className="text-amber-400">⊘ {blockedCount} blocked</span>
                 )}
                 {err && (
-                  <span style={{ color: "#f87171" }}>{err}</span>
+                  <span className="text-rose-400">{err}</span>
                 )}
               </div>
             </div>
 
-            {/* Right: rerun button */}
             <button
               onClick={() => handleRerun(run)}
               disabled={busy}
-              style={{
-                background: "transparent",
-                border: "1px solid #78350f",
-                color: busy ? "#666" : "#f59e0b",
-                borderRadius: 4,
-                padding: "4px 12px",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: busy ? "not-allowed" : "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold border transition-colors shrink-0",
+                busy
+                  ? "border-slate-700 text-slate-600 cursor-not-allowed"
+                  : "border-amber-500/30 text-amber-400 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/50",
+              )}
             >
-              {busy ? "Creating…" : "↺ Rerun"}
+              {busy
+                ? <><Loader2 className="h-3 w-3 animate-spin" />Creating…</>
+                : "↺ Rerun"
+              }
             </button>
           </div>
         );

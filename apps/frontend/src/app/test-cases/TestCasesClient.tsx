@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import {
   getTestCases,
   getSuites,
@@ -23,76 +25,9 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
 import { usePermission } from "@/context/PermissionsContext";
-
-// ── Severity badge ────────────────────────────────────────────────────────────
-
-const SEVERITY_COLORS: Record<string, { bg: string; fg: string }> = {
-  critical: { bg: "#3d0a0a", fg: "#f44336" },
-  high:     { bg: "#3d2a0a", fg: "#ff9800" },
-  medium:   { bg: "#0a1f3d", fg: "#64b5f6" },
-  low:      { bg: "#222",    fg: "#888" },
-};
-
-function SeverityBadge({ severity }: { severity: string }) {
-  const { bg, fg } = SEVERITY_COLORS[severity] ?? { bg: "#222", fg: "#888" };
-  return (
-    <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, background: bg, color: fg, fontWeight: 600 }}>
-      {severity}
-    </span>
-  );
-}
-
-// ── Last-run cell ─────────────────────────────────────────────────────────────
-
-function LastRunCell({
-  results,
-}: {
-  results?: { status: string; createdAt: string; testRunId: string }[];
-}) {
-  const last = results?.[0];
-  if (!last) return (
-    <span style={{ fontSize: 12, color: "#444" }}>— Never run</span>
-  );
-
-  const statusColors: Record<string, string> = {
-    pass:    "#22c55e",
-    fail:    "#ef4444",
-    blocked: "#f59e0b",
-    skip:    "#6b7280",
-    pending: "#555",
-  };
-
-  const color = statusColors[last.status] ?? "#555";
-
-  const date = new Date(last.createdAt);
-  const formatted = date.toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <span style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        fontSize: 12,
-        fontWeight: 600,
-        color,
-      }}>
-        <span style={{
-          width: 8,
-          height: 8,
-          borderRadius: "50%",
-          background: color,
-          flexShrink: 0,
-          display: "inline-block",
-        }} />
-        {last.status}
-      </span>
-      <span style={{ fontSize: 11, color: "#555" }}>{formatted}</span>
-    </div>
-  );
-}
+import { useToast } from "@/hooks/use-toast";
+import TestCaseTableRow from "./TestCaseTableRow";
+import TestCaseFilters, { type ActiveFilters } from "./TestCaseFilters";
 
 // ── Start Run Modal ───────────────────────────────────────────────────────────
 
@@ -126,51 +61,25 @@ function StartRunModal({
   const set = (key: keyof RunFormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "#111",
-    border: "1px solid #444",
-    color: "#eee",
-    borderRadius: 4,
-    padding: "7px 10px",
-    fontSize: 14,
-    boxSizing: "border-box",
-  };
-
   return (
     <div
       onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.75)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
+      className="fixed inset-0 bg-black/75 flex items-center justify-center z-modal"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#1a1a1a",
-          border: "1px solid #333",
-          borderRadius: 8,
-          padding: 28,
-          width: 460,
-          maxWidth: "92vw",
-        }}
+        className="bg-card border border-border rounded-lg p-7 w-[460px] max-w-[92vw]"
       >
-        <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 600 }}>Start Test Run</h2>
+        <h2 className="mt-0 mb-5 text-lg font-semibold">Start Test Run</h2>
 
-        <label style={{ display: "block", marginBottom: 16 }}>
-          <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Run name *</span>
-          <input value={form.name} onChange={set("name")} style={inputStyle} autoFocus />
+        <label className="block mb-4">
+          <span className="block text-sm text-muted-foreground mb-1.5">Run name *</span>
+          <input value={form.name} onChange={set("name")} className={inputClass} autoFocus />
         </label>
 
-        <label style={{ display: "block", marginBottom: 16 }}>
-          <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Environment</span>
-          <select value={form.environment} onChange={set("environment")} style={inputStyle}>
+        <label className="block mb-4">
+          <span className="block text-sm text-muted-foreground mb-1.5">Environment</span>
+          <select value={form.environment} onChange={set("environment")} className={inputClass}>
             <option value="staging">staging</option>
             <option value="production">production</option>
             <option value="dev">dev</option>
@@ -178,10 +87,10 @@ function StartRunModal({
           </select>
         </label>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <div className="grid grid-cols-2 gap-3.5 mb-4">
           <label>
-            <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Browser</span>
-            <select value={form.browser} onChange={set("browser")} style={inputStyle}>
+            <span className="block text-sm text-muted-foreground mb-1.5">Browser</span>
+            <select value={form.browser} onChange={set("browser")} className={inputClass}>
               <option value="">— optional —</option>
               <option value="chrome">chrome</option>
               <option value="firefox">firefox</option>
@@ -191,8 +100,8 @@ function StartRunModal({
             </select>
           </label>
           <label>
-            <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Device</span>
-            <select value={form.device} onChange={set("device")} style={inputStyle}>
+            <span className="block text-sm text-muted-foreground mb-1.5">Device</span>
+            <select value={form.device} onChange={set("device")} className={inputClass}>
               <option value="desktop">desktop</option>
               <option value="mobile">mobile</option>
               <option value="tablet">tablet</option>
@@ -200,34 +109,25 @@ function StartRunModal({
           </label>
         </div>
 
-        <label style={{ display: "block", marginBottom: 24 }}>
-          <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Build version</span>
+        <label className="block mb-6">
+          <span className="block text-sm text-muted-foreground mb-1.5">Build version</span>
           <input
             value={form.buildVersion}
             onChange={set("buildVersion")}
             placeholder="v1.0.0 or commit hash"
-            style={inputStyle}
+            className={inputClass}
           />
         </label>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex gap-2">
           <button
             onClick={() => onSubmit(form)}
             disabled={!form.name.trim() || submitting}
-            style={{
-              padding: "8px 16px",
-              background: "#0070f3",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              fontSize: 14,
-              cursor: !form.name.trim() || submitting ? "not-allowed" : "pointer",
-              opacity: !form.name.trim() || submitting ? 0.5 : 1,
-            }}
+            className={cn(primaryBtnClass, (!form.name.trim() || submitting) && "opacity-50 cursor-not-allowed")}
           >
             {submitting ? "Starting…" : "Start Run"}
           </button>
-          <button onClick={onCancel} style={ghostBtnStyleModal}>
+          <button onClick={onCancel} className={ghostBtnClass}>
             Cancel
           </button>
         </div>
@@ -235,17 +135,6 @@ function StartRunModal({
     </div>
   );
 }
-
-// Hoisted style used by modal (before ghostBtnStyle is defined at module level)
-const ghostBtnStyleModal: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "#aaa",
-  border: "1px solid #333",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-};
 
 // ── Sidebar items ─────────────────────────────────────────────────────────────
 
@@ -257,29 +146,23 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "8px 16px",
-        background: active ? "#0d1f33" : "transparent",
-        border: "none",
-        borderLeft: active ? "2px solid #0070f3" : "2px solid transparent",
-        color: active ? "#fff" : "#aaa",
-        cursor: "pointer",
-        fontSize: 14,
-        textAlign: "left",
-        boxSizing: "border-box",
-      }}
+      className={cn(
+        "flex items-center justify-between w-full px-4 py-2 border-l-2 text-sm text-left cursor-pointer transition-colors",
+        active
+          ? "bg-blue-950/40 border-l-primary text-foreground"
+          : "bg-transparent border-l-transparent text-muted-foreground hover:text-foreground"
+      )}
     >
       <span>{label}</span>
-      <span style={{ fontSize: 12, background: "#222", padding: "1px 7px", borderRadius: 10, color: "#666" }}>
+      <span className="text-xs bg-slate-800 px-1.5 py-px rounded-full text-slate-500">
         {count}
       </span>
     </button>
   );
 }
+
+const DEPTH_ACTIVE_TEXT  = ["text-primary",    "text-purple-400", "text-amber-400"];
+const DEPTH_ACTIVE_BORDER = ["border-l-primary", "border-l-purple-400", "border-l-amber-400"];
 
 function SuiteItem({
   suite, activeId, isAdmin, depth, onSelect, onRun, onBrd, onDelete, onAddChild,
@@ -305,9 +188,9 @@ function SuiteItem({
   const [hovered, setHovered] = useState(false);
   const hasChildren = suite.children && suite.children.length > 0;
   const active = activeId === suite.id;
-  const indent = depth * 12;
-  const depthColors = ["#0070f3", "#a855f7", "#f59e0b"];
-  const activeColor = depthColors[depth] ?? "#0070f3";
+  const activeBorderClass = DEPTH_ACTIVE_BORDER[depth] ?? "border-l-primary";
+  const activeTextClass   = DEPTH_ACTIVE_TEXT[depth]   ?? "text-primary";
+  const indentStyle = { paddingLeft: `${16 + depth * 12}px` };
 
   return (
     <div>
@@ -318,61 +201,42 @@ function SuiteItem({
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
         onDragEnter={(e) => { e.preventDefault(); onDragEnter(suite.id); }}
         onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDrop(suite.id); }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: `6px 8px 6px ${16 + indent}px`,
-          background: isDragOver ? "#0d2d1a" : active ? "#0d1f33" : "transparent",
-          borderLeft: active ? `3px solid ${activeColor}` : "3px solid transparent",
-          outline: isDragOver ? "1px dashed #4caf50" : "none",
-          cursor: "pointer",
-          gap: 4,
-          boxSizing: "border-box",
-        }}
+        style={indentStyle}
+        className={cn(
+          "flex items-center pr-2 py-1.5 border-l-[3px] cursor-pointer gap-1",
+          isDragOver
+            ? "bg-emerald-950/40 border-l-emerald-500 outline outline-1 outline-dashed outline-emerald-500"
+            : active
+              ? cn("bg-blue-950/30", activeBorderClass)
+              : "bg-transparent border-l-transparent hover:bg-slate-800/30"
+        )}
       >
         {/* Collapse toggle */}
         <span
           onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
-          style={{
-            fontSize: 10,
-            color: "#555",
-            width: 12,
-            flexShrink: 0,
-            cursor: hasChildren ? "pointer" : "default",
-          }}
+          className={cn("text-[10px] text-slate-500 w-3 shrink-0", hasChildren ? "cursor-pointer" : "cursor-default")}
         >
           {hasChildren ? (collapsed ? "▶" : "▼") : "•"}
         </span>
 
         {/* Suite icon by depth */}
-        <span style={{ fontSize: 12, flexShrink: 0 }}>
+        <span className="text-xs shrink-0">
           {depth === 0 ? "📁" : depth === 1 ? "📂" : "📋"}
         </span>
 
         {/* Suite name */}
         <span
           title={suite.name}
-          style={{
-            flex: 1,
-            fontSize: 13,
-            color: active ? activeColor : "#bbb",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
+          className={cn(
+            "flex-1 text-[13px] overflow-hidden text-ellipsis whitespace-nowrap",
+            active ? activeTextClass : "text-slate-300"
+          )}
         >
           {suite.name}
         </span>
 
         {/* Test case count badge */}
-        <span style={{
-          fontSize: 11,
-          background: "#222",
-          padding: "1px 5px",
-          borderRadius: 10,
-          color: "#666",
-          flexShrink: 0,
-        }}>
+        <span className="text-[11px] bg-slate-800 px-1.5 py-px rounded-full text-slate-500 shrink-0">
           {suite._count.testCases}
         </span>
 
@@ -396,36 +260,16 @@ function SuiteItem({
               }}
               onClick={(e) => e.stopPropagation()}
               placeholder={depth === 0 ? "Sub-suite name…" : "Group name…"}
-              style={{
-                background: "#111",
-                border: "1px solid #0070f3",
-                borderRadius: 4,
-                padding: "2px 6px",
-                color: "#eee",
-                fontSize: 12,
-                width: 120,
-                outline: "none",
-                flexShrink: 0,
-              }}
+              className="bg-background border border-primary rounded px-1.5 py-0.5 text-foreground text-xs w-28 outline-none shrink-0"
             />
           ) : (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setAddingChild(true);
-              }}
+              onClick={(e) => { e.stopPropagation(); setAddingChild(true); }}
               title={depth === 0 ? "Add Sub-suite" : "Add Group"}
-              style={{
-                background: "transparent",
-                border: "1px solid #333",
-                color: "#888",
-                borderRadius: 3,
-                padding: "1px 4px",
-                fontSize: 11,
-                cursor: "pointer",
-                flexShrink: 0,
-                visibility: hovered ? "visible" : "hidden",
-              }}
+              className={cn(
+                "bg-transparent border border-border text-slate-400 rounded px-1 py-px text-[11px] cursor-pointer shrink-0 transition-opacity",
+                hovered ? "opacity-100" : "opacity-0"
+              )}
             >
               +
             </button>
@@ -436,17 +280,10 @@ function SuiteItem({
         <button
           onClick={(e) => { e.stopPropagation(); onBrd(suite.id); }}
           title="Generate from BRD into this suite"
-          style={{
-            background: "#1a1a2e",
-            border: "1px solid #2a2a5a",
-            color: "#818cf8",
-            borderRadius: 3,
-            padding: "2px 5px",
-            fontSize: 11,
-            cursor: "pointer",
-            flexShrink: 0,
-            visibility: hovered ? "visible" : "hidden",
-          }}
+          className={cn(
+            "bg-indigo-950 border border-indigo-800 text-indigo-400 rounded px-1.5 py-0.5 text-[11px] cursor-pointer shrink-0 transition-opacity",
+            hovered ? "opacity-100" : "opacity-0"
+          )}
         >
           📄
         </button>
@@ -455,17 +292,10 @@ function SuiteItem({
         <button
           onClick={(e) => { e.stopPropagation(); onRun(suite.id, suite.name); }}
           title="Run suite"
-          style={{
-            background: "#0a2a0a",
-            border: "1px solid #1a5a1a",
-            color: "#4caf50",
-            borderRadius: 3,
-            padding: "2px 6px",
-            fontSize: 11,
-            cursor: "pointer",
-            flexShrink: 0,
-            visibility: hovered ? "visible" : "hidden",
-          }}
+          className={cn(
+            "bg-emerald-950 border border-emerald-800 text-emerald-500 rounded px-1.5 py-0.5 text-[11px] cursor-pointer shrink-0 transition-opacity",
+            hovered ? "opacity-100" : "opacity-0"
+          )}
         >
           ▶
         </button>
@@ -475,17 +305,10 @@ function SuiteItem({
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(suite.id, suite.name); }}
             title="Delete suite"
-            style={{
-              background: "transparent",
-              border: "1px solid #3d1a1a",
-              color: "#f87171",
-              borderRadius: 3,
-              padding: "2px 5px",
-              fontSize: 11,
-              cursor: "pointer",
-              flexShrink: 0,
-              visibility: hovered ? "visible" : "hidden",
-            }}
+            className={cn(
+              "bg-transparent border border-red-900 text-red-400 rounded px-1 py-px text-[11px] cursor-pointer shrink-0 transition-opacity",
+              hovered ? "opacity-100" : "opacity-0"
+            )}
           >
             ✕
           </button>
@@ -519,28 +342,16 @@ function SuiteItem({
   );
 }
 
-// ── Filter bar ────────────────────────────────────────────────────────────────
-
-const filterSelectStyle: React.CSSProperties = {
-  background: "#161616",
-  border: "1px solid #2a2a2a",
-  color: "#aaa",
-  borderRadius: 4,
-  padding: "5px 8px",
-  fontSize: 13,
-  cursor: "pointer",
-};
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 type Selection = string | null;
 
-type ActiveFilters = Pick<TestCaseFilters, "search" | "category" | "severity" | "priority" | "status">;
 
 export default function TestCasesClient() {
   const { loading: authLoading, user } = useRequireAuth();
   const isAdmin = user?.role === "admin";
   const { can } = usePermission();
+  const { toast } = useToast();
   const token = getStoredToken() ?? "";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -567,17 +378,6 @@ export default function TestCasesClient() {
     return result;
   };
   const flatSuites = flattenSuites(suites);
-
-  const buildBreadcrumb = (suiteId: string, tree: TestSuite[], path: string[] = []): string[] | null => {
-    for (const s of tree) {
-      if (s.id === suiteId) return [...path, s.name];
-      if (s.children?.length) {
-        const found = buildBreadcrumb(suiteId, s.children, [...path, s.name]);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
 
   const [unassignedCount, setUnassignedCount] = useState(0);
 
@@ -641,19 +441,16 @@ export default function TestCasesClient() {
 
   // ── Fetch suites + sidebar counts ──────────────────────────────────────────
   useEffect(() => {
-    getSuites()
-      .then((data) => {
-        setSuites(data);
-        setSuitesError(null);
-      })
+    getSuites(getActiveProjectId() ?? undefined)
+      .then((data) => { setSuites(data); setSuitesError(null); })
       .catch((err) => {
         console.error("Failed to load suites:", err);
         setSuitesError("Could not load suites. Please refresh.");
       });
-    // Sidebar counts from two cheap count-only calls
+    const pid = getActiveProjectId() ?? undefined;
     Promise.all([
-      getTestCases({ limit: 1 }),
-      getTestCases({ suiteId: "unassigned", limit: 1 }),
+      getTestCases({ limit: 1, ...(pid ? { projectId: pid } : {}) }),
+      getTestCases({ suiteId: "unassigned", limit: 1, ...(pid ? { projectId: pid } : {}) }),
     ]).then(([all, unassigned]) => {
       setTotalCount(all.total);
       setUnassignedCount(unassigned.total);
@@ -678,17 +475,15 @@ export default function TestCasesClient() {
         setSelected(new Set());
         setTotalPages(result.totalPages);
         setTotalResults(result.total);
-        // Resolve createdBy IDs → display names (cached — no duplicate fetches)
         const ids = [...new Set(result.data.map((tc) => tc.createdBy).filter(Boolean))] as string[];
         if (ids.length > 0) {
           Promise.all(ids.map((id) => getUser(id).then((u) => [id, u.name] as const)))
             .then((pairs) => setUserNames((prev) => ({ ...prev, ...Object.fromEntries(pairs) })))
-            .catch(() => {}); // silent — never break the list
+            .catch(() => {});
         }
-        // Fetch project members for the assign dropdown
-        const projectId = getActiveProjectId();
-        if (projectId && token) {
-          getProjectMembers(projectId, token).then(setMembers).catch(() => {});
+        const pid = getActiveProjectId();
+        if (pid && token) {
+          getProjectMembers(pid, token).then(setMembers).catch(() => {});
         }
       })
       .catch(() => setLoadError("Could not reach backend. Make sure it is running on port 3001."))
@@ -700,7 +495,7 @@ export default function TestCasesClient() {
     if (showNewSuite) newSuiteInputRef.current?.focus();
   }, [showNewSuite]);
 
-  // ── Sync filter state → URL (skip initial mount to avoid redundant replace) ─
+  // ── Sync filter state → URL ────────────────────────────────────────────────
   const isFirstRender = useRef(true);
   useEffect(() => {
     if (isFirstRender.current) { isFirstRender.current = false; return; }
@@ -752,7 +547,6 @@ export default function TestCasesClient() {
   function selectSuite(id: Selection) {
     setSelectedId(id);
     setPage(1);
-    // keep filters across suite changes — user can clear manually
   }
 
   // ── Selection helpers ──────────────────────────────────────────────────────
@@ -817,14 +611,14 @@ export default function TestCasesClient() {
 
   async function handleRunSuite(suiteId: string, suiteName: string) {
     try {
-      const result = await getTestCases({ suiteId, fields: "id", limit: 1000 });
-      if (result.data.length === 0) { alert("No test cases in this suite."); return; }
+      const result = await getTestCases({ suiteId, fields: "id", limit: 1000, projectId: getActiveProjectId() ?? undefined });
+      if (result.data.length === 0) { toast({ title: "No test cases", description: "This suite has no test cases." }); return; }
       setRunModal({
         caseIds: result.data.map((c) => c.id),
         defaultName: `${suiteName} — ${new Date().toLocaleDateString()}`,
       });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to load suite cases");
+      toast({ variant: "destructive", title: "Failed to load suite", description: err instanceof Error ? err.message : "Could not load suite cases" });
     }
   }
 
@@ -843,12 +637,10 @@ export default function TestCasesClient() {
       );
       router.push(`/runs/${run.id}`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create run");
+      toast({ variant: "destructive", title: "Failed to create run", description: err instanceof Error ? err.message : undefined });
       setStarting(false);
     }
   }
-
-  // ── Run all matching results (fields=id fast path) ────────────────────────
 
   async function handleRunAllMatching() {
     try {
@@ -857,8 +649,9 @@ export default function TestCasesClient() {
         ...activeFilters,
         fields: "id",
         limit: 1000,
+        projectId: getActiveProjectId() ?? undefined,
       });
-      if (result.data.length === 0) { alert("No test cases match the current filters."); return; }
+      if (result.data.length === 0) { toast({ title: "No matching cases", description: "No test cases match the current filters." }); return; }
       const filterDesc = activeFilters.search
         ? `"${activeFilters.search}"`
         : activeFilters.category ?? activeFilters.severity ?? activeFilters.priority ?? "filtered";
@@ -867,7 +660,7 @@ export default function TestCasesClient() {
         defaultName: `${filterDesc} — ${new Date().toLocaleDateString()}`,
       });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to load matching cases");
+      toast({ variant: "destructive", title: "Failed to load cases", description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -897,7 +690,7 @@ export default function TestCasesClient() {
       a.click();
       URL.revokeObjectURL(objectUrl);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Export failed");
+      toast({ variant: "destructive", title: "Export failed", description: err instanceof Error ? err.message : undefined });
     } finally {
       setExporting(false);
     }
@@ -913,10 +706,10 @@ export default function TestCasesClient() {
       const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
       const formData = new FormData();
       formData.append("file", importFile);
-      const token = getStoredToken();
+      const tok = getStoredToken();
       const res = await fetch(`${base}/test-cases/import`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
         body: formData,
       });
       if (!res.ok) {
@@ -948,7 +741,6 @@ export default function TestCasesClient() {
       } else {
         await removeFromSuite(tcId);
       }
-      // Refresh current page
       const filters: TestCaseFilters = {
         ...(selectedId !== null ? { suiteId: selectedId } : {}),
         ...activeFilters,
@@ -957,15 +749,15 @@ export default function TestCasesClient() {
       };
       const result = await getTestCases(filters);
       setTestCases(result.data);
-      // Refresh sidebar counts
+      const pid = getActiveProjectId() ?? undefined;
       const [all, unassigned] = await Promise.all([
-        getTestCases({ limit: 1 }),
-        getTestCases({ suiteId: "unassigned", limit: 1 }),
+        getTestCases({ limit: 1, ...(pid ? { projectId: pid } : {}) }),
+        getTestCases({ suiteId: "unassigned", limit: 1, ...(pid ? { projectId: pid } : {}) }),
       ]);
       setTotalCount(all.total);
       setUnassignedCount(unassigned.total);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to update suite");
+      toast({ variant: "destructive", title: "Failed to update suite", description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -980,27 +772,22 @@ export default function TestCasesClient() {
     if (e.key !== "Enter" || !newSuiteName.trim()) return;
     setSavingSuite(true);
     try {
-      await createSuite(newSuiteName.trim());
-      // Refetch instead of local append — ensures _count
-      // and ordering are correct from the server
-      const updated = await getSuites();
+      await createSuite(newSuiteName.trim(), undefined, undefined, getActiveProjectId() ?? undefined);
+      const updated = await getSuites(getActiveProjectId() ?? undefined);
       setSuites(updated);
       setNewSuiteName("");
       setShowNewSuite(false);
+      toast({ title: "Suite created" });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to create suite");
+      toast({ variant: "destructive", title: "Failed to create suite", description: err instanceof Error ? err.message : undefined });
     } finally {
       setSavingSuite(false);
     }
   }
 
-  const handleAddChild = async (
-    parentId: string,
-    parentDepth: number,
-    name: string
-  ) => {
-    await createSuite(name, undefined, parentId);
-    const updated = await getSuites();
+  const handleAddChild = async (parentId: string, parentDepth: number, name: string) => {
+    await createSuite(name, undefined, parentId, getActiveProjectId() ?? undefined);
+    const updated = await getSuites(getActiveProjectId() ?? undefined);
     setSuites(updated);
   };
 
@@ -1011,16 +798,15 @@ export default function TestCasesClient() {
     await handleSuiteChange(draggingTcId, suiteId);
   };
 
-  // ── Suite delete (admin only) ──────────────────────────────────────────────
-
   async function handleDeleteSuite(suiteId: string, suiteName: string) {
     if (!confirm(`Delete suite "${suiteName}"? Test cases will become unassigned.`)) return;
     try {
       await deleteSuite(suiteId);
       setSuites((prev) => prev.filter((s) => s.id !== suiteId));
       if (selectedId === suiteId) selectSuite(null);
+      toast({ title: "Suite deleted" });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete suite");
+      toast({ variant: "destructive", title: "Failed to delete suite", description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -1036,16 +822,13 @@ export default function TestCasesClient() {
   );
   const categories = Object.keys(grouped).sort();
 
-  const selectedSuite = selectedId && selectedId !== "unassigned"
-    ? suites.find((s) => s.id === selectedId)
-    : null;
+  const heading =
+    selectedId && selectedId !== "unassigned"
+      ? (suites.find((s) => s.id === selectedId)?.name ?? "Test Cases")
+      : selectedId === "unassigned" ? "Unassigned"
+      : "Test Cases";
 
   const colCount = 11;
-
-  const heading =
-    selectedSuite ? selectedSuite.name
-    : selectedId === "unassigned" ? "Unassigned"
-    : "Test Cases";
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1053,43 +836,19 @@ export default function TestCasesClient() {
   if (authLoading) return null;
 
   return (
-    <div style={{ display: "flex", minHeight: "calc(100vh - 45px)" }}>
+    <div className="flex min-h-[calc(100vh-45px)]">
 
       {/* Admin-required banner */}
       {errorParam === "admin-required" && (
-        <div style={{
-          position: "fixed", top: 48, left: 0, right: 0, zIndex: 100,
-          background: "#3d1414", borderBottom: "1px solid #7f2020",
-          padding: "12px 32px", color: "#fca5a5", fontSize: 14, textAlign: "center",
-        }}>
+        <div className="fixed top-12 left-0 right-0 z-banner bg-red-950 border-b border-red-800 px-8 py-3 text-red-300 text-sm text-center">
           Admin access required. You have been redirected.
         </div>
       )}
 
       {/* ── Sidebar ── */}
-      <aside
-        style={{
-          width: 260,
-          minWidth: 260,
-          borderRight: "1px solid #1e1e1e",
-          display: "flex",
-          flexDirection: "column",
-          paddingTop: 12,
-          overflowY: "auto",
-          background: "#0a0a0a",
-        }}
-      >
+      <aside className="w-[260px] min-w-[260px] border-r border-slate-900 flex flex-col pt-3 overflow-y-auto bg-[#0a0a0a]">
         {draggingTcId && (
-          <div style={{
-            padding: "6px 12px",
-            background: "#0d2d1a",
-            border: "1px dashed #4caf50",
-            borderRadius: 6,
-            margin: "4px 8px",
-            fontSize: 11,
-            color: "#4caf50",
-            textAlign: "center",
-          }}>
+          <div className="mx-2 my-1 px-3 py-1.5 bg-emerald-950/40 border border-dashed border-emerald-500 rounded-md text-[11px] text-emerald-500 text-center">
             Drop onto a suite to assign
           </div>
         )}
@@ -1106,15 +865,13 @@ export default function TestCasesClient() {
           onClick={() => selectSuite("unassigned")}
         />
 
-        <div style={{ borderTop: "1px solid #1e1e1e", margin: "8px 0" }} />
+        <div className="border-t border-slate-900 my-2" />
 
         {suitesError && (
-          <p style={{ color: "#f87171", fontSize: 12, padding: "4px 8px" }}>
-            {suitesError}
-          </p>
+          <p className="text-red-400 text-xs px-2 py-1">{suitesError}</p>
         )}
 
-        <div style={{ padding: "8px 12px" }}>
+        <div className="px-3 py-2">
           {showNewSuite ? (
             <input
               ref={newSuiteInputRef}
@@ -1124,33 +881,12 @@ export default function TestCasesClient() {
               onBlur={() => { setShowNewSuite(false); setNewSuiteName(""); }}
               placeholder="Suite name…"
               disabled={savingSuite}
-              style={{
-                width: "100%",
-                background: "#161616",
-                border: "1px solid #444",
-                borderRadius: 4,
-                color: "#eee",
-                padding: "6px 8px",
-                fontSize: 13,
-                boxSizing: "border-box",
-                outline: "none",
-              }}
+              className="w-full bg-popover border border-slate-600 rounded text-foreground px-2 py-1.5 text-[13px] outline-none box-border"
             />
           ) : (
             <button
               onClick={() => setShowNewSuite(true)}
-              style={{
-                width: "100%",
-                background: "transparent",
-                border: "1px dashed #333",
-                color: "#666",
-                borderRadius: 4,
-                padding: "6px 8px",
-                cursor: "pointer",
-                fontSize: 13,
-                textAlign: "left",
-                boxSizing: "border-box",
-              }}
+              className="w-full bg-transparent border border-dashed border-border text-slate-500 rounded px-2 py-1.5 cursor-pointer text-[13px] text-left hover:border-slate-500 hover:text-slate-400 transition-colors"
             >
               ＋ New suite
             </button>
@@ -1178,17 +914,17 @@ export default function TestCasesClient() {
       </aside>
 
       {/* ── Main content ── */}
-      <div style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+      <div className="flex-1 px-8 py-7 overflow-y-auto">
 
         {/* Header row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h1 style={{ margin: 0, fontSize: 22 }}>{heading}</h1>
-          <div style={{ display: "flex", gap: 8 }}>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="m-0 text-[22px] font-semibold">{heading}</h1>
+          <div className="flex gap-2">
             {selected.size > 0 && (
               <button
                 onClick={() => handleStartRun(Array.from(selected), `Run ${new Date().toLocaleDateString()}`)}
                 disabled={starting}
-                style={runBtnStyle}
+                className={runBtnClass}
               >
                 {starting ? "Starting…" : `▶ Start Run (${selected.size})`}
               </button>
@@ -1198,22 +934,20 @@ export default function TestCasesClient() {
                 onClick={handleRunAllMatching}
                 disabled={starting}
                 title={`Fetch all ${totalResults} matching IDs and start a run`}
-                style={runBtnStyle}
+                className={cn(runBtnClass, "inline-flex items-center gap-1.5")}
               >
+                {starting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {starting ? "Starting…" : `▶ Run all filtered (${totalResults})`}
               </button>
             )}
             <button
               onClick={() => { setImportResult(null); setImportError(""); setImportFile(null); setShowImportModal(true); }}
-              style={ghostBtnStyle}
+              className={ghostBtnClass}
             >
               Import CSV
             </button>
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              style={ghostBtnStyle}
-            >
+            <button onClick={handleExport} disabled={exporting} className={cn(ghostBtnClass, "inline-flex items-center gap-1.5")}>
+              {exporting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {exporting ? "Exporting…" : "Export CSV"}
             </button>
             {can("create", "test_case") && (
@@ -1223,7 +957,7 @@ export default function TestCasesClient() {
                     ? `/test-cases/new?suiteId=${selectedId}`
                     : "/test-cases/new"
                 }
-                style={linkBtnStyle}
+                className={primaryLinkClass}
               >
                 + New
               </Link>
@@ -1233,52 +967,34 @@ export default function TestCasesClient() {
 
         {/* ── Bulk assign bar ── */}
         {selected.size > 0 && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "10px 16px", background: "#1a1a2e",
-            border: "1px solid #2563eb44", borderRadius: 8,
-            marginBottom: 12, flexWrap: "wrap",
-          }}>
-            <span style={{ fontSize: 13, color: "#60a5fa", fontWeight: 600 }}>
+          <div className="flex items-center gap-2.5 px-4 py-2.5 bg-blue-950/30 border border-blue-800/30 rounded-lg mb-3 flex-wrap">
+            <span className="text-[13px] text-blue-400 font-semibold">
               {selected.size} selected
             </span>
 
             <button
               onClick={handleAssignToMe}
               disabled={assigning}
-              style={{
-                padding: "5px 12px", borderRadius: 6, fontSize: 12,
-                fontWeight: 500, cursor: "pointer",
-                background: "#1e3a5f", color: "#60a5fa",
-                border: "1px solid #2563eb44",
-              }}
+              className="px-3 py-1 rounded-md text-xs font-medium cursor-pointer bg-blue-900/40 text-blue-400 border border-blue-800/30 hover:bg-blue-900/60 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
             >
+              {assigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {assigning ? "Assigning…" : "Assign to Me"}
             </button>
 
             {can("assign_others", "test_case") && (
               <>
-                <div style={{ position: "relative" }}>
+                <div className="relative">
                   <button
                     onClick={() => setShowAssignDropdown(p => !p)}
                     disabled={assigning}
-                    style={{
-                      padding: "5px 12px", borderRadius: 6, fontSize: 12,
-                      fontWeight: 500, cursor: "pointer",
-                      background: "transparent", color: "#eee",
-                      border: "1px solid #333",
-                    }}
+                    className="px-3 py-1 rounded-md text-xs font-medium cursor-pointer bg-transparent text-foreground border border-border hover:bg-slate-700/40 transition-colors disabled:opacity-50"
                   >
                     Assign to… ▾
                   </button>
                   {showAssignDropdown && (
-                    <div style={{
-                      position: "absolute", top: "100%", left: 0, zIndex: 50,
-                      background: "#1a1a1a", border: "1px solid #2a2a2a",
-                      borderRadius: 8, padding: 8, minWidth: 220, marginTop: 4,
-                    }}>
+                    <div className="absolute top-full left-0 z-50 bg-card border border-slate-800 rounded-lg p-2 min-w-[220px] mt-1">
                       {members.length === 0 && (
-                        <div style={{ fontSize: 13, color: "#555", padding: "8px 12px" }}>
+                        <div className="text-[13px] text-slate-500 px-3 py-2">
                           No members found
                         </div>
                       )}
@@ -1286,22 +1002,9 @@ export default function TestCasesClient() {
                         <div
                           key={m.userId}
                           onClick={() => handleAssign(m.userId)}
-                          style={{
-                            padding: "8px 12px", cursor: "pointer",
-                            fontSize: 13, color: "#eee", borderRadius: 4,
-                            display: "flex", alignItems: "center", gap: 8,
-                          }}
-                          onMouseEnter={e =>
-                            (e.currentTarget.style.background = "#2a2a2a")}
-                          onMouseLeave={e =>
-                            (e.currentTarget.style.background = "transparent")}
+                          className="px-3 py-2 cursor-pointer text-[13px] text-foreground rounded flex items-center gap-2 hover:bg-slate-700/50 transition-colors"
                         >
-                          <div style={{
-                            width: 24, height: 24, borderRadius: "50%",
-                            background: "#1e3a5f", color: "#60a5fa",
-                            display: "flex", alignItems: "center",
-                            justifyContent: "center", fontSize: 10, fontWeight: 600,
-                          }}>
+                          <div className="w-6 h-6 rounded-full bg-blue-900/60 text-blue-400 flex items-center justify-center text-[10px] font-semibold shrink-0">
                             {(m.user?.name ?? m.user?.email ?? "?")
                               .slice(0, 2).toUpperCase()}
                           </div>
@@ -1315,12 +1018,7 @@ export default function TestCasesClient() {
                 <button
                   onClick={() => handleAssign(null)}
                   disabled={assigning}
-                  style={{
-                    padding: "5px 12px", borderRadius: 6, fontSize: 12,
-                    fontWeight: 500, cursor: "pointer",
-                    background: "transparent", color: "#f87171",
-                    border: "1px solid #5c202044",
-                  }}
+                  className="px-3 py-1 rounded-md text-xs font-medium cursor-pointer bg-transparent text-red-400 border border-red-900/40 hover:bg-red-950/30 transition-colors disabled:opacity-50"
                 >
                   Unassign
                 </button>
@@ -1329,11 +1027,7 @@ export default function TestCasesClient() {
 
             <button
               onClick={() => setSelected(new Set())}
-              style={{
-                padding: "5px 12px", borderRadius: 6, fontSize: 12,
-                cursor: "pointer", background: "transparent",
-                color: "#666", border: "1px solid #333", marginLeft: "auto",
-              }}
+              className="px-3 py-1 rounded-md text-xs cursor-pointer bg-transparent text-slate-500 border border-border ml-auto hover:text-slate-300 transition-colors"
             >
               Clear
             </button>
@@ -1341,285 +1035,80 @@ export default function TestCasesClient() {
         )}
 
         {/* ── Filter bar ── */}
-        <div style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginBottom: 20,
-          padding: "10px 14px",
-          background: "#111",
-          border: "1px solid #1e1e1e",
-          borderRadius: 6,
-        }}>
-          {/* Search */}
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Search title or description…"
-            style={{
-              flex: "1 1 200px",
-              minWidth: 160,
-              background: "#1a1a1a",
-              border: "1px solid #2a2a2a",
-              color: "#eee",
-              borderRadius: 4,
-              padding: "5px 10px",
-              fontSize: 13,
-            }}
-          />
-
-          {/* Category */}
-          <select
-            value={activeFilters.category ?? ""}
-            onChange={(e) => setFilter("category", e.target.value)}
-            style={filterSelectStyle}
-          >
-            <option value="">Category</option>
-            <option value="functional">Functional</option>
-            <option value="e2e">E2E</option>
-            <option value="integration">Integration</option>
-            <option value="smoke">Smoke</option>
-            <option value="sanity">Sanity</option>
-            <option value="regression">Regression</option>
-          </select>
-
-          {/* Severity */}
-          <select
-            value={activeFilters.severity ?? ""}
-            onChange={(e) => setFilter("severity", e.target.value)}
-            style={filterSelectStyle}
-          >
-            <option value="">Severity</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-
-          {/* Priority */}
-          <select
-            value={activeFilters.priority ?? ""}
-            onChange={(e) => setFilter("priority", e.target.value)}
-            style={filterSelectStyle}
-          >
-            <option value="">Priority</option>
-            <option value="P1">P1</option>
-            <option value="P2">P2</option>
-            <option value="P3">P3</option>
-            <option value="P4">P4</option>
-          </select>
-
-          {/* Status */}
-          <select
-            value={activeFilters.status ?? ""}
-            onChange={(e) => setFilter("status", e.target.value)}
-            style={filterSelectStyle}
-          >
-            <option value="">Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="draft">Draft</option>
-          </select>
-
-          {/* Result count + clear */}
-          <span style={{ fontSize: 12, color: "#555", marginLeft: "auto", whiteSpace: "nowrap" }}>
-            {loading ? "…" : `${totalResults} result${totalResults !== 1 ? "s" : ""}`}
-          </span>
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              style={{
-                background: "transparent",
-                border: "1px solid #333",
-                color: "#888",
-                borderRadius: 4,
-                padding: "4px 10px",
-                fontSize: 12,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              ✕ Clear
-            </button>
-          )}
-        </div>
+        <TestCaseFilters
+          searchInput={searchInput}
+          onSearchChange={handleSearchChange}
+          activeFilters={activeFilters}
+          onFilterChange={setFilter}
+          hasActiveFilters={hasActiveFilters}
+          totalResults={totalResults}
+          loading={loading}
+          onClear={clearFilters}
+        />
 
         {/* Error / loading / empty states */}
-        {loadError && <p style={{ color: "#f44336" }}>{loadError}</p>}
-        {loading && <p style={{ color: "#666" }}>Loading…</p>}
+        {loadError && <p className="text-destructive">{loadError}</p>}
+        {loading && <p className="text-slate-500">Loading…</p>}
         {!loading && !loadError && testCases.length === 0 && (
-          <p style={{ color: "#666" }}>
+          <p className="text-slate-500">
             {hasActiveFilters ? "No test cases match the current filters." : "No test cases."}
           </p>
         )}
 
         {/* Table */}
         {!loading && !loadError && testCases.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ borderBottom: "1px solid #2a2a2a", textAlign: "left", color: "#777" }}>
-                <th style={th}>
+              <tr className="border-b border-slate-800 text-left text-slate-500">
+                <th className={thClass}>
                   <input
                     type="checkbox"
                     checked={selected.size === testCases.length && testCases.length > 0}
                     onChange={toggleAll}
-                    style={{ cursor: "pointer" }}
+                    className="cursor-pointer"
                   />
                 </th>
-                <th style={{ ...th, color: "#555", fontSize: 11, width: 80 }}>ID</th>
-                <th style={th}>Title</th>
-                <th style={th}>Category</th>
-                <th style={th}>Suite</th>
-                <th style={th}>Status</th>
-                <th style={th}>Assignee</th>
-                <th style={th}>Severity</th>
-                <th style={th}>Last Run</th>
-                <th style={th}>Created</th>
-                <th style={th}></th>
+                <th className={cn(thClass, "text-slate-600 text-[11px] w-20")}>ID</th>
+                <th className={thClass}>Title</th>
+                <th className={thClass}>Category</th>
+                <th className={thClass}>Suite</th>
+                <th className={thClass}>Status</th>
+                <th className={thClass}>Assignee</th>
+                <th className={thClass}>Severity</th>
+                <th className={thClass}>Last Run</th>
+                <th className={thClass}>Created</th>
+                <th className={thClass}></th>
               </tr>
             </thead>
             <tbody>
               {categories.flatMap((cat) => [
-                <tr key={`cat-${cat}`} style={{ background: "#131313" }}>
+                <tr key={`cat-${cat}`} className="bg-[#131313]">
                   <td
                     colSpan={colCount}
-                    style={{
-                      padding: "5px 12px",
-                      fontWeight: 700,
-                      color: "#777",
-                      fontSize: 11,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
+                    className="px-3 py-1 font-bold text-slate-500 text-[11px] uppercase tracking-[0.06em]"
                   >
                     {cat}
                   </td>
                 </tr>,
                 ...grouped[cat].map((tc) => (
-                  <tr
+                  <TestCaseTableRow
                     key={tc.id}
-                    draggable
-                    onDragStart={(e) => {
-                      setDraggingTcId(tc.id);
+                    tc={tc}
+                    selected={selected.has(tc.id)}
+                    dragging={draggingTcId === tc.id}
+                    onSelect={toggleSelect}
+                    onDragStart={(id, e) => {
+                      setDraggingTcId(id);
                       e.dataTransfer.effectAllowed = "move";
-                      e.dataTransfer.setData("tcId", tc.id);
+                      e.dataTransfer.setData("tcId", id);
                     }}
                     onDragEnd={() => setDraggingTcId(null)}
-                    style={{
-                      borderBottom: "1px solid #1e1e1e",
-                      background: selected.has(tc.id) ? "#0d1f33" : "transparent",
-                      opacity: draggingTcId === tc.id ? 0.4 : 1,
-                      cursor: "grab",
-                    }}
-                  >
-                    <td style={td}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(tc.id)}
-                        onChange={() => toggleSelect(tc.id)}
-                        style={{ cursor: "pointer" }}
-                      />
-                    </td>
-                    <td style={td}>
-                      <span style={{
-                        fontSize: 11,
-                        fontFamily: "monospace",
-                        color: "#555",
-                        background: "#1a1a1a",
-                        border: "1px solid #2a2a2a",
-                        borderRadius: 3,
-                        padding: "2px 6px",
-                        whiteSpace: "nowrap",
-                      }}>
-                        {tc.tcId || "—"}
-                      </span>
-                    </td>
-                    <td style={td}>
-                      <div>{tc.title}</div>
-                      {tc.suiteId && (() => {
-                        const crumbs = buildBreadcrumb(tc.suiteId, suites);
-                        return crumbs ? (
-                          <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
-                            {crumbs.join(" › ")}
-                          </div>
-                        ) : null;
-                      })()}
-                      {tc.createdBy && (
-                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
-                          Added by {userNames[tc.createdBy] || tc.createdBy}
-                        </div>
-                      )}
-                    </td>
-                    <td style={td}>{tc.category}</td>
-                    <td style={{ ...td, padding: "6px 12px" }}>
-                      <select
-                        value={tc.suiteId ?? ""}
-                        onChange={(e) => handleSuiteChange(tc.id, e.target.value || null)}
-                        style={{
-                          background: "#161616",
-                          border: "1px solid #2a2a2a",
-                          color: tc.suiteId ? "#5b9bd5" : "#555",
-                          borderRadius: 3,
-                          padding: "3px 6px",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          maxWidth: 150,
-                        }}
-                      >
-                        <option value="">No suite</option>
-                        {flatSuites.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {"  ".repeat(s.depth)}{s.depth > 0 ? "└ " : ""}{s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td style={td}>
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: 12,
-                          fontSize: 12,
-                          background: tc.status === "active" ? "#0a3d0a" : "#3d1a0a",
-                          color: tc.status === "active" ? "#4caf50" : "#ff8a50",
-                        }}
-                      >
-                        {tc.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      {(tc as any).assignee ? (
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{
-                            width: 24, height: 24, borderRadius: "50%",
-                            background: "#1e3a5f", color: "#60a5fa",
-                            display: "flex", alignItems: "center",
-                            justifyContent: "center", fontSize: 10, fontWeight: 600,
-                          }}>
-                            {((tc as any).assignee?.name ?? (tc as any).assignee?.email ?? "?")
-                              .slice(0, 2).toUpperCase()}
-                          </div>
-                          <span style={{ fontSize: 12, color: "#888" }}>
-                            {(tc as any).assignee?.name ?? (tc as any).assignee?.email}
-                          </span>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: 12, color: "#444" }}>—</span>
-                      )}
-                    </td>
-                    <td style={td}><SeverityBadge severity={tc.severity} /></td>
-                    <td style={td}><LastRunCell results={tc.results} /></td>
-                    <td style={td}>{new Date(tc.createdAt).toLocaleDateString()}</td>
-                    <td style={td}>
-                      {can("edit", "test_case") && (
-                        <Link href={`/test-cases/${tc.id}`} style={{ color: "#0070f3", textDecoration: "none" }}>
-                          Edit
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
+                    can={can}
+                    userNames={userNames}
+                    suites={suites}
+                    flatSuites={flatSuites}
+                    onSuiteChange={handleSuiteChange}
+                  />
                 )),
               ])}
             </tbody>
@@ -1628,44 +1117,18 @@ export default function TestCasesClient() {
 
         {/* ── Pagination ── */}
         {!loading && !loadError && totalResults > 0 && (
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-            marginTop: 20,
-            paddingTop: 16,
-            borderTop: "1px solid #1e1e1e",
-            fontSize: 13,
-          }}>
-            {/* Showing X–Y of Z */}
-            <span style={{ color: "#666", whiteSpace: "nowrap" }}>
+          <div className="flex items-center flex-wrap gap-2 mt-5 pt-4 border-t border-slate-900 text-[13px]">
+            <span className="text-slate-500 whitespace-nowrap">
               Showing {((page - 1) * limit) + 1}–{Math.min(page * limit, totalResults)} of {totalResults} case{totalResults !== 1 ? "s" : ""}
             </span>
 
-            {/* Spacer */}
-            <div style={{ flex: 1 }} />
+            <div className="flex-1" />
 
-            {/* Page navigation — only when multiple pages */}
             {totalPages > 1 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button
-                  onClick={() => setPage(1)}
-                  disabled={page === 1}
-                  style={pageBtnStyle(page === 1)}
-                  title="First page"
-                >
-                  «
-                </button>
-                <button
-                  onClick={() => setPage((p) => p - 1)}
-                  disabled={page === 1}
-                  style={pageBtnStyle(page === 1)}
-                >
-                  ‹ Prev
-                </button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(1)} disabled={page === 1} className={pageBtnClass(page === 1)} title="First page">«</button>
+                <button onClick={() => setPage((p) => p - 1)} disabled={page === 1} className={pageBtnClass(page === 1)}>‹ Prev</button>
 
-                {/* Page number pills — first + last always shown, ±1 around current */}
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
                   .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
                   .reduce<(number | "…")[]>((acc, p, idx, arr) => {
@@ -1675,60 +1138,41 @@ export default function TestCasesClient() {
                   }, [])
                   .map((p, i) =>
                     p === "…" ? (
-                      <span key={`ellipsis-${i}`} style={{ color: "#555", padding: "0 2px" }}>…</span>
+                      <span key={`ellipsis-${i}`} className="text-slate-500 px-0.5">…</span>
                     ) : (
                       <button
                         key={p}
                         onClick={() => setPage(p as number)}
-                        style={{
-                          ...pageBtnStyle(false),
-                          background: p === page ? "#0070f3" : "transparent",
-                          color: p === page ? "#fff" : "#aaa",
-                          borderColor: p === page ? "#0070f3" : "#333",
-                          minWidth: 32,
-                          fontWeight: p === page ? 600 : 400,
-                        }}
+                        className={cn(
+                          pageBtnClass(false),
+                          "min-w-8",
+                          p === page
+                            ? "bg-primary text-primary-foreground border-primary font-semibold"
+                            : "text-muted-foreground"
+                        )}
                       >
                         {p}
                       </button>
                     ),
                   )}
 
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={page === totalPages}
-                  style={pageBtnStyle(page === totalPages)}
-                >
-                  Next ›
-                </button>
-                <button
-                  onClick={() => setPage(totalPages)}
-                  disabled={page === totalPages}
-                  style={pageBtnStyle(page === totalPages)}
-                  title="Last page"
-                >
-                  »
-                </button>
+                <button onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} className={pageBtnClass(page === totalPages)}>Next ›</button>
+                <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className={pageBtnClass(page === totalPages)} title="Last page">»</button>
               </div>
             )}
 
-            {/* Page size selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
-              <span style={{ color: "#555", whiteSpace: "nowrap" }}>Per page:</span>
+            <div className="flex items-center gap-1.5 ml-2">
+              <span className="text-slate-500 whitespace-nowrap">Per page:</span>
               {([20, 50, 100] as const).map((n) => (
                 <button
                   key={n}
                   onClick={() => { setLimit(n); setPage(1); }}
-                  style={{
-                    padding: "3px 9px",
-                    fontSize: 12,
-                    background: limit === n ? "#0070f3" : "transparent",
-                    color: limit === n ? "#fff" : "#888",
-                    border: `1px solid ${limit === n ? "#0070f3" : "#333"}`,
-                    borderRadius: 4,
-                    cursor: "pointer",
-                    fontWeight: limit === n ? 600 : 400,
-                  }}
+                  className={cn(
+                    "px-2 py-0.5 text-xs rounded border cursor-pointer transition-colors",
+                    limit === n
+                      ? "bg-primary text-primary-foreground border-primary font-semibold"
+                      : "bg-transparent text-slate-400 border-border hover:text-foreground"
+                  )}
                 >
                   {n}
                 </button>
@@ -1752,39 +1196,24 @@ export default function TestCasesClient() {
       {showImportModal && (
         <div
           onClick={closeImportModal}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 bg-black/75 flex items-center justify-center z-modal"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#1a1a1a",
-              border: "1px solid #333",
-              borderRadius: 8,
-              padding: 28,
-              width: 440,
-              maxWidth: "92vw",
-            }}
+            className="bg-card border border-border rounded-lg p-7 w-[440px] max-w-[92vw]"
           >
-            <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 600 }}>Import CSV</h2>
+            <h2 className="mt-0 mb-5 text-lg font-semibold">Import CSV</h2>
 
             {importResult ? (
               <>
-                <p style={{ color: "#4caf50", margin: "0 0 10px", fontSize: 15 }}>
+                <p className="text-emerald-500 mb-2.5 text-[15px]">
                   ✓ {importResult.imported} case{importResult.imported !== 1 ? "s" : ""} imported
                   {importResult.skipped > 0 ? `, ${importResult.skipped} skipped` : ""}
                 </p>
                 {importResult.suiteCreated.length > 0 && (
-                  <div style={{ margin: "8px 0 18px" }}>
-                    <p style={{ color: "#888", fontSize: 13, margin: "0 0 6px" }}>New suites created:</p>
-                    <ul style={{ margin: 0, paddingLeft: 18, color: "#bbb", fontSize: 13, lineHeight: 1.7 }}>
+                  <div className="my-2 mb-4">
+                    <p className="text-slate-400 text-[13px] mb-1.5">New suites created:</p>
+                    <ul className="m-0 pl-4 text-slate-300 text-[13px] leading-7">
                       {importResult.suiteCreated.map((name) => (
                         <li key={name}>{name}</li>
                       ))}
@@ -1792,8 +1221,12 @@ export default function TestCasesClient() {
                   </div>
                 )}
                 <button
-                  onClick={() => { closeImportModal(); setRefreshKey((k) => k + 1); }}
-                  style={{ ...linkBtnStyleBtn, marginTop: 8 }}
+                  onClick={() => {
+                    toast({ title: `${importResult.imported} case${importResult.imported !== 1 ? "s" : ""} imported` });
+                    closeImportModal();
+                    setRefreshKey((k) => k + 1);
+                  }}
+                  className={cn(primaryBtnClass, "mt-2")}
                 >
                   Done
                 </button>
@@ -1801,53 +1234,41 @@ export default function TestCasesClient() {
             ) : (
               <>
                 {importError && (
-                  <p style={{ color: "#f44336", fontSize: 13, margin: "0 0 14px" }}>{importError}</p>
+                  <p className="text-destructive text-[13px] mb-3.5">{importError}</p>
                 )}
 
-                <label style={{ display: "block", marginBottom: 16 }}>
-                  <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>CSV File</span>
+                <label className="block mb-4">
+                  <span className="block text-sm text-muted-foreground mb-1.5">CSV File</span>
                   <input
                     type="file"
                     accept=".csv"
                     onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
-                    style={{ color: "#eee", fontSize: 14, width: "100%" }}
+                    className="text-foreground text-sm w-full"
                   />
                 </label>
 
-                <label style={{ display: "block", marginBottom: 22 }}>
-                  <span style={{ display: "block", fontSize: 13, color: "#aaa", marginBottom: 6 }}>Format</span>
+                <label className="block mb-5">
+                  <span className="block text-sm text-muted-foreground mb-1.5">Format</span>
                   <select
                     value={importFormat}
                     onChange={(e) => setImportFormat(e.target.value as "qavibe" | "testrail")}
-                    style={{
-                      width: "100%",
-                      background: "#111",
-                      border: "1px solid #444",
-                      color: "#eee",
-                      borderRadius: 4,
-                      padding: "7px 10px",
-                      fontSize: 14,
-                      boxSizing: "border-box",
-                    }}
+                    className={cn(inputClass, "w-full")}
                   >
                     <option value="qavibe">QAVibe CSV</option>
                     <option value="testrail">TestRail CSV</option>
                   </select>
                 </label>
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex gap-2">
                   <button
                     onClick={handleImport}
                     disabled={!importFile || importing}
-                    style={{
-                      ...linkBtnStyleBtn,
-                      opacity: !importFile || importing ? 0.5 : 1,
-                      cursor: !importFile || importing ? "not-allowed" : "pointer",
-                    }}
+                    className={cn(primaryBtnClass, "inline-flex items-center gap-2", (!importFile || importing) && "opacity-50 cursor-not-allowed")}
                   >
+                    {importing && <Loader2 className="h-4 w-4 animate-spin" />}
                     {importing ? "Importing…" : "Import"}
                   </button>
-                  <button onClick={closeImportModal} style={ghostBtnStyle}>
+                  <button onClick={closeImportModal} className={ghostBtnClass}>
                     Cancel
                   </button>
                 </div>
@@ -1860,58 +1281,29 @@ export default function TestCasesClient() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Class constants ────────────────────────────────────────────────────────────
 
-const th: React.CSSProperties = { padding: "8px 12px", fontWeight: 500 };
-const td: React.CSSProperties = { padding: "10px 12px" };
+const thClass = "px-3 py-2 font-medium";
+const tdClass = "px-3 py-2.5";
 
-const linkBtnStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "#0070f3",
-  color: "#fff",
-  borderRadius: 4,
-  textDecoration: "none",
-  fontSize: 14,
-};
+const inputClass =
+  "w-full bg-background border border-slate-600 text-foreground rounded px-2.5 py-[7px] text-sm box-border focus:outline-none focus:border-primary transition-colors";
 
-const linkBtnStyleBtn: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "#0070f3",
-  color: "#fff",
-  border: "none",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-};
+const primaryBtnClass =
+  "px-4 py-2 bg-primary text-primary-foreground border-none rounded text-sm cursor-pointer hover:bg-primary/90 transition-colors disabled:opacity-50";
 
-const runBtnStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "#1a6b1a",
-  color: "#fff",
-  border: "none",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-};
+const primaryLinkClass =
+  "px-4 py-2 bg-primary text-primary-foreground rounded text-sm no-underline hover:bg-primary/90 transition-colors";
 
-const ghostBtnStyle: React.CSSProperties = {
-  padding: "8px 16px",
-  background: "transparent",
-  color: "#aaa",
-  border: "1px solid #333",
-  borderRadius: 4,
-  fontSize: 14,
-  cursor: "pointer",
-};
+const runBtnClass =
+  "px-4 py-2 bg-emerald-900 text-white border-none rounded text-sm cursor-pointer hover:bg-emerald-800 transition-colors disabled:opacity-50";
 
-function pageBtnStyle(disabled: boolean): React.CSSProperties {
-  return {
-    padding: "4px 10px",
-    background: "transparent",
-    color: disabled ? "#444" : "#aaa",
-    border: "1px solid #333",
-    borderRadius: 4,
-    fontSize: 13,
-    cursor: disabled ? "not-allowed" : "pointer",
-  };
+const ghostBtnClass =
+  "px-4 py-2 bg-transparent text-muted-foreground border border-border rounded text-sm cursor-pointer hover:text-foreground transition-colors";
+
+function pageBtnClass(disabled: boolean) {
+  return cn(
+    "px-2.5 py-1 bg-transparent border border-border rounded text-[13px] transition-colors",
+    disabled ? "text-slate-600 cursor-not-allowed" : "text-muted-foreground cursor-pointer hover:text-foreground"
+  );
 }

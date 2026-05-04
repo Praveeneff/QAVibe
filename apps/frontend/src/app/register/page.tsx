@@ -3,18 +3,21 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const router       = useRouter();
+  const { toast }    = useToast();
 
-  const [name,     setName]     = useState("");
-  const [email,    setEmail]    = useState("");
+  const [name,            setName]            = useState("");
+  const [email,           setEmail]           = useState("");
   const [password,        setPassword]        = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error,           setError]           = useState<string | null>(null);
-  const [loading,  setLoading]  = useState(false);
+  const [loading,         setLoading]         = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -34,115 +37,69 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email.trim(), password, name.trim());
+      toast({ title: "Account created!" });
       router.push("/");
     } catch (err: any) {
-      setError(err?.message ?? "Registration failed");
+      const msg = err?.message ?? "Registration failed";
+      setError(msg);
+      toast({ variant: "destructive", title: "Registration failed", description: msg });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "#111",
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        background: "#1a1a1a",
-        border: "1px solid #2a2a2a",
-        borderRadius: 12,
-        padding: "40px 48px",
-        width: 360,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-      }}>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-card border border-slate-800 rounded-xl px-12 py-10 w-[360px] flex flex-col gap-5"
+      >
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff" }}>Create account</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#666" }}>
+          <h1 className="m-0 text-[22px] font-bold text-foreground">Create account</h1>
+          <p className="mt-1.5 mb-0 text-[13px] text-slate-500">
             First user becomes admin automatically
           </p>
         </div>
 
         {error && (
-          <div style={{
-            background: "#2d1414",
-            border: "1px solid #5c2020",
-            borderRadius: 6,
-            padding: "10px 14px",
-            color: "#f87171",
-            fontSize: 13,
-          }}>
+          <div className="bg-destructive/10 border border-red-900 rounded-md px-3.5 py-2.5 text-red-400 text-[13px]">
             {error}
           </div>
         )}
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Name
-          </span>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-slate-400 uppercase tracking-[0.06em]">Name</span>
           <input
             type="text"
             required
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Your name"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
+            className="bg-background border border-border rounded-md px-3 py-2.5 text-foreground text-sm outline-none focus:border-primary transition-colors"
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Email
-          </span>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-slate-400 uppercase tracking-[0.06em]">Email</span>
           <input
             type="email"
             required
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@example.com"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
+            className="bg-background border border-border rounded-md px-3 py-2.5 text-foreground text-sm outline-none focus:border-primary transition-colors"
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Password
-          </span>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs text-slate-400 uppercase tracking-[0.06em]">Password</span>
           <input
             type="password"
             required
             value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="Min 8 characters"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
+            className="bg-background border border-border rounded-md px-3 py-2.5 text-foreground text-sm outline-none focus:border-primary transition-colors"
           />
           <input
             type="password"
@@ -150,39 +107,22 @@ export default function RegisterPage() {
             value={confirmPassword}
             onChange={e => setConfirmPassword(e.target.value)}
             placeholder="Confirm your password"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
+            className="bg-background border border-border rounded-md px-3 py-2.5 text-foreground text-sm outline-none focus:border-primary transition-colors"
           />
         </label>
 
         <button
           type="submit"
           disabled={loading}
-          style={{
-            background: loading ? "#1d3a5c" : "#2563eb",
-            border: "none",
-            borderRadius: 7,
-            padding: "11px 0",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-            transition: "background 0.15s",
-          }}
+          className="bg-blue-600 disabled:bg-blue-900 border-none rounded-lg py-3 text-white text-sm font-semibold cursor-pointer disabled:cursor-not-allowed transition-colors hover:bg-blue-500 flex items-center justify-center gap-2"
         >
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading ? "Creating account…" : "Create account"}
         </button>
 
-        <p style={{ margin: 0, fontSize: 13, color: "#666", textAlign: "center" }}>
+        <p className="m-0 text-[13px] text-slate-500 text-center">
           Already have an account?{" "}
-          <Link href="/login" style={{ color: "#60a5fa", textDecoration: "none" }}>
+          <Link href="/login" className="text-blue-400 no-underline hover:underline">
             Sign in
           </Link>
         </p>

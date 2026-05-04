@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -46,8 +47,7 @@ export default function NewProjectPage() {
 
       const project = await res.json();
 
-      // Determine the caller's role from the members array
-      let role: "OWNER" | "MEMBER" = "OWNER"; // creator is always OWNER
+      let role: "OWNER" | "MEMBER" = "OWNER";
       try {
         const payload = JSON.parse(atob(token.split(".")[1]));
         const me = project.members?.find((m: any) => m.userId === payload.sub);
@@ -55,7 +55,6 @@ export default function NewProjectPage() {
       } catch { /* use default OWNER */ }
 
       setActiveProject({ id: project.id, name: project.name, description: project.description ?? null, role });
-
       router.push("/dashboard");
     } catch (err: any) {
       setError(err?.message ?? "Failed to create project");
@@ -65,54 +64,55 @@ export default function NewProjectPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        {/* Back link */}
-        <Link href="/projects" style={styles.backLink}>
+    <div className="min-h-screen bg-background flex items-center justify-center px-6 py-10">
+      <div className="bg-card border border-slate-800 rounded-xl px-12 py-10 w-full max-w-[480px] flex flex-col">
+
+        <Link href="/projects" className="text-[13px] text-blue-400 no-underline hover:text-blue-300">
           ← Back to Projects
         </Link>
 
-        <div style={{ marginTop: 20 }}>
-          <h1 style={styles.title}>New Project</h1>
-          <p style={styles.subtitle}>Create a project to organise your test work</p>
+        <div className="mt-5">
+          <h1 className="m-0 text-[22px] font-bold text-foreground">New Project</h1>
+          <p className="mt-1.5 mb-0 text-[13px] text-slate-500">Create a project to organise your test work</p>
         </div>
 
         {error && (
-          <div style={styles.errorBox}>{error}</div>
+          <div className="mt-5 bg-destructive/10 border border-red-900 rounded-md px-3.5 py-2.5 text-red-400 text-[13px]">
+            {error}
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.fieldWrap}>
-            <span style={styles.label}>Project Name *</span>
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+          <label className="flex flex-col gap-1.5">
+            <span className={labelClass}>Project Name *</span>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Bank App"
-              style={styles.input}
+              className={inputClass}
             />
           </label>
 
-          <label style={styles.fieldWrap}>
-            <span style={styles.label}>Description</span>
+          <label className="flex flex-col gap-1.5">
+            <span className={labelClass}>Description</span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional — what is this project about?"
               rows={3}
-              style={{ ...styles.input, resize: "vertical", lineHeight: 1.5 }}
+              className={cn(inputClass, "resize-y leading-relaxed")}
             />
           </label>
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              ...styles.submitBtn,
-              background: loading ? "#1d3a5c" : "#2563eb",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className={cn(
+              "bg-blue-600 text-white border-none rounded-lg py-[11px] text-sm font-semibold transition-colors",
+              loading ? "opacity-70 cursor-not-allowed" : "cursor-pointer hover:bg-blue-500",
+            )}
           >
             {loading ? "Creating…" : "Create Project"}
           </button>
@@ -122,88 +122,5 @@ export default function NewProjectPage() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "40px 24px",
-  },
-  card: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    padding: "40px 48px",
-    width: "100%",
-    maxWidth: 480,
-    display: "flex",
-    flexDirection: "column",
-    gap: 0,
-  },
-  backLink: {
-    fontSize: 13,
-    color: "#60a5fa",
-    textDecoration: "none",
-  },
-  title: {
-    margin: 0,
-    fontSize: 22,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    color: "#666",
-  },
-  errorBox: {
-    marginTop: 20,
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "10px 14px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-  form: {
-    marginTop: 24,
-    display: "flex",
-    flexDirection: "column",
-    gap: 20,
-  },
-  fieldWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  label: {
-    fontSize: 12,
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-  },
-  input: {
-    background: "#111",
-    border: "1px solid #333",
-    borderRadius: 6,
-    padding: "9px 12px",
-    color: "#eee",
-    fontSize: 14,
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-    fontFamily: "inherit",
-  },
-  submitBtn: {
-    border: "none",
-    borderRadius: 7,
-    padding: "11px 0",
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: 600,
-    transition: "background 0.15s",
-  },
-};
+const labelClass = "text-xs text-slate-400 uppercase tracking-[0.06em]";
+const inputClass = "bg-background border border-border rounded-md px-3 py-[9px] text-foreground text-sm outline-none w-full box-border font-inherit focus:border-primary transition-colors";

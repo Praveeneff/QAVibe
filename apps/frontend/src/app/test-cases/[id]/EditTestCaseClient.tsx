@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import TestCaseForm from "../../../components/TestCaseForm";
 import { updateTestCase, deleteTestCase, getProjectMembers, getActiveProjectId, type TestCase } from "../../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -16,9 +17,7 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
   const { loading, user } = useRequireAuth();
   const router = useRouter();
 
-  // currentTestCase drives the form — updated when a version is restored
   const [currentTestCase, setCurrentTestCase] = useState<TestCase>(initialTestCase);
-  // Incrementing key forces TestCaseForm to remount (re-read initial values) on restore
   const [formKey, setFormKey] = useState(0);
 
   const [deleting,      setDeleting]      = useState(false);
@@ -55,29 +54,19 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
 
   function handleRestore(restored: TestCase) {
     setCurrentTestCase(restored);
-    setFormKey((k) => k + 1);           // remount form with restored values
+    setFormKey((k) => k + 1);
     setRestoreNotice(`Form updated to v — restored successfully.`);
     setTimeout(() => setRestoreNotice(""), 4000);
   }
 
   return (
     <div>
-      {/* Restore notice */}
       {restoreNotice && (
-        <div style={{
-          marginBottom: 16,
-          padding: "9px 14px",
-          background: "#0f2a1a",
-          border: "1px solid #166534",
-          borderRadius: 6,
-          color: "#4ade80",
-          fontSize: 13,
-        }}>
+        <div className="mb-4 px-3.5 py-2 bg-emerald-950/30 border border-emerald-800 rounded-md text-emerald-400 text-[13px]">
           {restoreNotice}
         </div>
       )}
 
-      {/* Edit form */}
       <TestCaseForm
         key={formKey}
         initial={currentTestCase}
@@ -85,37 +74,17 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
         onSubmit={(data) => updateTestCase(currentTestCase.id, { ...data, assignedTo })}
       />
 
-      {/* Assigned To — shown when project members are available */}
       {members.length > 0 && (
-        <div style={{ marginTop: 16, maxWidth: 560 }}>
-          <div style={{
-            fontSize: 11,
-            color: "#666",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: 8,
-            borderBottom: "1px solid #1e1e1e",
-            paddingBottom: 6,
-          }}>
+        <div className="mt-4 max-w-[560px]">
+          <div className="text-[11px] text-slate-500 uppercase tracking-[0.08em] mb-2 border-b border-slate-900 pb-1.5">
             Assignment
           </div>
-          <label style={{ display: "block", fontSize: 14 }}>
+          <label className="block text-sm text-foreground">
             Assigned To
             <select
               value={assignedTo ?? ""}
               onChange={(e) => setAssignedTo(e.target.value || null)}
-              style={{
-                display: "block",
-                width: "100%",
-                marginTop: 4,
-                padding: "6px 8px",
-                fontSize: 14,
-                boxSizing: "border-box" as const,
-                background: "#1a1a1a",
-                color: "#eee",
-                border: "1px solid #444",
-                borderRadius: 4,
-              }}
+              className="block w-full mt-1 px-2 py-1.5 text-sm bg-card text-foreground border border-slate-600 rounded focus:outline-none focus:border-primary transition-colors"
             >
               <option value="">Unassigned</option>
               {members.map((m) => (
@@ -128,19 +97,15 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
         </div>
       )}
 
-      {/* History toggle + delete */}
-      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #222", display: "flex", gap: 10, alignItems: "center" }}>
+      <div className="mt-6 pt-4 border-t border-slate-800 flex gap-2.5 items-center">
         <button
           onClick={() => setShowHistory((v) => !v)}
-          style={{
-            background: showHistory ? "#0f1f3b" : "transparent",
-            border: "1px solid #2a2a2a",
-            color: showHistory ? "#60a5fa" : "#666",
-            borderRadius: 4,
-            padding: "6px 14px",
-            fontSize: 13,
-            cursor: "pointer",
-          }}
+          className={cn(
+            "border rounded px-3.5 py-1.5 text-[13px] cursor-pointer transition-colors",
+            showHistory
+              ? "bg-blue-950/40 border-blue-800 text-blue-400"
+              : "bg-transparent border-slate-800 text-slate-500 hover:text-slate-300",
+          )}
         >
           {showHistory ? "▲ Hide History" : "▼ Show History"}
         </button>
@@ -149,34 +114,19 @@ export default function EditTestCaseClient({ testCase: initialTestCase }: Props)
           <button
             onClick={handleDelete}
             disabled={deleting}
-            style={{
-              padding: "6px 14px",
-              fontSize: 13,
-              background: "#7f1d1d",
-              color: "#fff",
-              border: "none",
-              borderRadius: 4,
-              cursor: "pointer",
-              marginLeft: "auto",
-            }}
+            className={cn(
+              "px-3.5 py-1.5 text-[13px] bg-red-900 text-white border-none rounded cursor-pointer hover:bg-red-800 transition-colors ml-auto",
+              deleting && "opacity-50 cursor-not-allowed",
+            )}
           >
             {deleting ? "Deleting…" : "Delete Test Case"}
           </button>
         )}
       </div>
 
-      {/* History panel */}
       {showHistory && (
-        <div style={{
-          marginTop: 16,
-          padding: 20,
-          background: "#0a0a0a",
-          border: "1px solid #1e1e1e",
-          borderRadius: 8,
-        }}>
-          <h3 style={{ margin: "0 0 14px", fontSize: 15, color: "#eee", fontWeight: 600 }}>
-            Version History
-          </h3>
+        <div className="mt-4 p-5 bg-[#0a0a0a] border border-slate-900 rounded-lg">
+          <h3 className="m-0 mb-3.5 text-[15px] text-foreground font-semibold">Version History</h3>
           <HistoryPanel
             testCaseId={currentTestCase.id}
             onRestore={handleRestore}

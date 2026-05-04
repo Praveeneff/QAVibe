@@ -7,7 +7,6 @@ import { AiGenerationContext } from "./ai-generation.context";
 import { ClaudeService } from "./providers/claude.service";
 import { OpenAiService } from "./providers/openai.service";
 import { GeminiService } from "./providers/gemini.service";
-import { OpenRouterService } from "./providers/openrouter.service";
 import { GroqService } from "./providers/groq.service";
 import { DocumentParserService } from "./document-parser.service";
 import { BrdController } from "./brd.controller";
@@ -28,23 +27,20 @@ import { TestCaseModule } from "../test-case/test-case.module";
     ClaudeService,
     OpenAiService,
     GeminiService,
-    OpenRouterService,
     GroqService,
     {
       provide: AI_PROVIDER_TOKEN,
-      useFactory: (claude: ClaudeService, openai: OpenAiService, gemini: GeminiService, openrouter: OpenRouterService) => {
+      useFactory: (claude: ClaudeService, openai: OpenAiService, gemini: GeminiService) => {
         switch (process.env.AI_PROVIDER) {
           case "openai":
             return openai;
           case "gemini":
             return gemini;
-          case "openrouter":
-            return openrouter;
           default:
             return claude;
         }
       },
-      inject: [ClaudeService, OpenAiService, GeminiService, OpenRouterService],
+      inject: [ClaudeService, OpenAiService, GeminiService],
     },
   ],
   exports: [DuplicateDetectorService],

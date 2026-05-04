@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { getStoredToken } from "@/context/AuthContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -19,16 +20,22 @@ function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function barColor(pct: number): string {
-  if (pct > 80) return "#ef4444";
-  if (pct > 50) return "#f59e0b";
-  return "#22c55e";
+function barColorClass(pct: number): string {
+  if (pct > 80) return "bg-red-500";
+  if (pct > 50) return "bg-amber-500";
+  return "bg-emerald-500";
+}
+
+function barTextClass(pct: number): string {
+  if (pct > 80) return "text-destructive";
+  if (pct > 50) return "text-amber-500";
+  return "text-emerald-400";
 }
 
 export default function TokenUsageTab({ projectId }: { projectId: string }) {
-  const [rows, setRows]       = useState<UsageRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [rows, setRows]           = useState<UsageRow[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
   const [resetting, setResetting] = useState<string | null>(null);
 
   async function fetchUsage() {
@@ -69,78 +76,63 @@ export default function TokenUsageTab({ projectId }: { projectId: string }) {
     }
   }
 
-  if (loading) return <p style={{ color: "#666", fontSize: 14 }}>Loading token usage…</p>;
-  if (error)   return <div style={styles.errorBox}>{error}</div>;
+  if (loading) return <p className="text-slate-500 text-sm">Loading token usage…</p>;
+  if (error)   return <div className={errorBoxClass}>{error}</div>;
 
   return (
     <div>
-      <div style={styles.sectionLabel}>Token usage — {rows.length} users</div>
-      <table style={styles.table}>
+      <div className={sectionLabelClass}>Token usage — {rows.length} users</div>
+      <table className="w-full border-collapse">
         <thead>
           <tr>
             {["User", "Used", "Limit", "Progress", "Last Reset", "Action"].map((h) => (
-              <th key={h} style={styles.th}>{h}</th>
+              <th key={h} className={thClass}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => {
-            const pct   = Math.min(100, r.percentUsed);
-            const color = barColor(pct);
+            const pct = Math.min(100, r.percentUsed);
             return (
               <tr key={r.id}>
-                {/* User */}
-                <td style={styles.td}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={styles.avatar}>{r.name.slice(0, 2).toUpperCase()}</div>
+                <td className={tdClass}>
+                  <div className="flex items-center gap-2.5">
+                    <div className={avatarClass}>{r.name.slice(0, 2).toUpperCase()}</div>
                     <div>
-                      <div style={{ fontSize: 13, color: "#eee", fontWeight: 500 }}>{r.name}</div>
-                      <div style={{ fontSize: 12, color: "#555" }}>{r.email}</div>
+                      <div className="text-[13px] text-foreground font-medium">{r.name}</div>
+                      <div className="text-xs text-slate-500">{r.email}</div>
                     </div>
                   </div>
                 </td>
-
-                {/* Used */}
-                <td style={styles.td}>
-                  <span style={{ fontSize: 13, color: "#eee" }}>
-                    {r.tokenUsed.toLocaleString()}
-                  </span>
+                <td className={tdClass}>
+                  <span className="text-[13px] text-foreground">{r.tokenUsed.toLocaleString()}</span>
                 </td>
-
-                {/* Limit */}
-                <td style={styles.td}>
-                  <span style={{ fontSize: 13, color: "#888" }}>
-                    {r.globalLimit.toLocaleString()}
-                  </span>
+                <td className={tdClass}>
+                  <span className="text-[13px] text-slate-400">{r.globalLimit.toLocaleString()}</span>
                 </td>
-
-                {/* Progress bar */}
-                <td style={{ ...styles.td, minWidth: 140 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={styles.barTrack}>
-                      <div style={{ ...styles.barFill, width: `${pct}%`, background: color }} />
+                <td className={cn(tdClass, "min-w-[140px]")}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-slate-800 rounded overflow-hidden min-w-[80px]">
+                      <div
+                        className={cn("h-full rounded transition-[width]", barColorClass(pct))}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
-                    <span style={{ fontSize: 12, color, minWidth: 36 }}>{pct}%</span>
+                    <span className={cn("text-xs min-w-[36px]", barTextClass(pct))}>{pct}%</span>
                   </div>
                 </td>
-
-                {/* Last Reset */}
-                <td style={styles.td}>
+                <td className={tdClass}>
                   {r.tokenResetAt ? (
-                    <span style={{ fontSize: 12, color: "#555" }}>
-                      {daysSince(r.tokenResetAt)}d ago
-                    </span>
+                    <span className="text-xs text-slate-500">{daysSince(r.tokenResetAt)}d ago</span>
                   ) : (
-                    <span style={{ fontSize: 12, color: "#333" }}>—</span>
+                    <span className="text-xs text-slate-700">—</span>
                   )}
                 </td>
-
-                {/* Reset button */}
-                <td style={styles.td}>
+                <td className={tdClass}>
                   <button
                     onClick={() => resetUsage(r.id)}
                     disabled={resetting === r.id}
-                    style={styles.resetBtn}
+                    className="bg-transparent border border-slate-800 rounded-md px-3 py-1 text-xs font-medium text-slate-400 cursor-pointer hover:border-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {resetting === r.id ? "…" : "Reset"}
                   </button>
@@ -154,74 +146,8 @@ export default function TokenUsageTab({ projectId }: { projectId: string }) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  sectionLabel: {
-    fontSize: 11,
-    fontWeight: 500,
-    color: "#666",
-    textTransform: "uppercase",
-    letterSpacing: "0.07em",
-    marginBottom: 12,
-  },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: {
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#555",
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    padding: "8px 12px",
-    borderBottom: "1px solid #2a2a2a",
-  },
-  td: {
-    padding: "12px 12px",
-    borderBottom: "1px solid #1e1e1e",
-    verticalAlign: "middle",
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    background: "#1a1a2e",
-    color: "#60a5fa",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 12,
-    fontWeight: 600,
-    border: "1px solid #1e3a5f",
-    flexShrink: 0,
-  },
-  barTrack: {
-    flex: 1,
-    height: 6,
-    background: "#2a2a2a",
-    borderRadius: 3,
-    overflow: "hidden",
-    minWidth: 80,
-  },
-  barFill: {
-    height: "100%",
-    borderRadius: 3,
-    transition: "width 0.3s ease",
-  },
-  resetBtn: {
-    background: "transparent",
-    border: "1px solid #2a2a2a",
-    borderRadius: 6,
-    padding: "5px 12px",
-    fontSize: 12,
-    fontWeight: 500,
-    color: "#888",
-    cursor: "pointer",
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const sectionLabelClass = "text-[11px] font-medium text-slate-500 uppercase tracking-[0.07em] mb-3";
+const thClass = "text-left text-[11px] font-semibold text-slate-500 uppercase tracking-[0.06em] px-3 py-2 border-b border-slate-800";
+const tdClass = "px-3 py-3 border-b border-slate-900 align-middle";
+const avatarClass = "w-8 h-8 rounded-full bg-blue-950/40 text-blue-400 flex items-center justify-center text-xs font-semibold border border-blue-900 shrink-0";
+const errorBoxClass = "bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]";

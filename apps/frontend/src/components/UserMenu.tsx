@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 
 export default function UserMenu() {
@@ -11,7 +12,6 @@ export default function UserMenu() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function onMouseDown(e: MouseEvent) {
@@ -27,21 +27,13 @@ export default function UserMenu() {
 
   if (!user) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Link href="/login" style={{ color: "#888", textDecoration: "none", fontSize: 13 }}>
+      <div className="flex items-center gap-2.5">
+        <Link href="/login" className="text-slate-400 no-underline text-[13px] hover:text-foreground transition-colors">
           Sign in
         </Link>
         <Link
           href="/register"
-          style={{
-            background: "#2563eb",
-            color: "#fff",
-            textDecoration: "none",
-            fontSize: 12,
-            fontWeight: 600,
-            padding: "5px 14px",
-            borderRadius: 6,
-          }}
+          className="bg-blue-600 text-white no-underline text-xs font-semibold px-3.5 py-1 rounded-md hover:bg-blue-500 transition-colors"
         >
           Register
         </Link>
@@ -50,9 +42,6 @@ export default function UserMenu() {
   }
 
   const isAdmin = user.role === "admin";
-  const roleBg    = isAdmin ? "#3b0f0f" : "#0f1f3b";
-  const roleFg    = isAdmin ? "#f87171" : "#60a5fa";
-  const roleBorder = isAdmin ? "#7f2020" : "#1d4ed8";
 
   function handleLogout() {
     setOpen(false);
@@ -61,96 +50,41 @@ export default function UserMenu() {
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} className="relative">
       {/* Trigger button */}
       <button
         onClick={() => setOpen((v) => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "transparent",
-          border: "1px solid #2a2a2a",
-          borderRadius: 8,
-          padding: "5px 12px 5px 8px",
-          cursor: "pointer",
-          color: "#ccc",
-          fontSize: 13,
-        }}
+        className="flex items-center gap-2 bg-transparent border border-slate-800 rounded-lg px-3 py-[5px] cursor-pointer text-slate-300 text-[13px] hover:border-slate-600 transition-colors"
       >
         {/* Avatar circle */}
-        <span style={{
-          width: 26,
-          height: 26,
-          borderRadius: "50%",
-          background: isAdmin ? "#7f1d1d" : "#1e3a5f",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 12,
-          fontWeight: 700,
-          color: "#fff",
-          flexShrink: 0,
-        }}>
+        <span className={cn(
+          "w-[26px] h-[26px] rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0",
+          isAdmin ? "bg-red-900" : "bg-blue-900"
+        )}>
           {user.name.charAt(0).toUpperCase()}
         </span>
         <span>{user.name}</span>
         {/* Role pill */}
-        <span style={{
-          fontSize: 10,
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.07em",
-          padding: "2px 7px",
-          borderRadius: 20,
-          background: roleBg,
-          color: roleFg,
-          border: `1px solid ${roleBorder}`,
-        }}>
+        <span className={cn(
+          "text-[10px] font-bold uppercase tracking-[0.07em] px-[7px] py-0.5 rounded-full border",
+          isAdmin
+            ? "bg-red-950 text-red-400 border-red-800"
+            : "bg-blue-950 text-blue-400 border-blue-800"
+        )}>
           {user.role}
         </span>
-        <span style={{ fontSize: 10, color: "#555", marginLeft: 2 }}>▾</span>
+        <span className="text-[10px] text-slate-500 ml-0.5">▾</span>
       </button>
 
       {/* Dropdown */}
       {open && (
-        <div style={{
-          position: "absolute",
-          top: "calc(100% + 6px)",
-          right: 0,
-          background: "#161616",
-          border: "1px solid #2a2a2a",
-          borderRadius: 8,
-          minWidth: 200,
-          zIndex: 200,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-          overflow: "hidden",
-        }}>
-          {/* Email — muted, non-clickable */}
-          <div style={{
-            padding: "12px 16px 10px",
-            fontSize: 12,
-            color: "#555",
-            borderBottom: "1px solid #222",
-            wordBreak: "break-all",
-          }}>
+        <div className="absolute top-[calc(100%+6px)] right-0 bg-popover border border-slate-800 rounded-lg min-w-[200px] z-dropdown shadow-[0_8px_24px_rgba(0,0,0,0.5)] overflow-hidden">
+          <div className="px-4 py-3 pb-2.5 text-xs text-slate-500 border-b border-slate-800 break-all">
             {user.email}
           </div>
-
-          {/* Logout */}
           <button
             onClick={handleLogout}
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "11px 16px",
-              background: "transparent",
-              border: "none",
-              textAlign: "left",
-              color: "#f87171",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
+            className="block w-full px-4 py-[11px] bg-transparent border-none text-left text-red-400 text-[13px] cursor-pointer hover:bg-slate-800/40 transition-colors"
           >
             Logout
           </button>

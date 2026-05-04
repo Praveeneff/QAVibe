@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { useAuth, getStoredToken } from "@/context/AuthContext";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -33,16 +34,11 @@ export default function ProjectsClient() {
   useEffect(() => {
     const token = getStoredToken();
     if (!token) { router.push("/login"); return; }
-
-    // Decode userId from JWT payload (base64 middle segment)
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setUserId(payload.sub ?? null);
-    } catch { /* ignore — role badge will just show MEMBER */ }
-
-    fetch(`${BASE_URL}/projects`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    } catch { /* ignore */ }
+    fetch(`${BASE_URL}/projects`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (res) => {
         if (!res.ok) throw new Error(`Failed to load projects (${res.status})`);
         return res.json();
@@ -54,48 +50,39 @@ export default function ProjectsClient() {
 
   function selectProject(project: Project) {
     const role = userId ? myRole(project, userId) : "MEMBER";
-    const ap = {
-      id:          project.id,
-      name:        project.name,
-      description: project.description ?? null,
-      role,
-    };
-    setActiveProject(ap);
+    setActiveProject({ id: project.id, name: project.name, description: project.description ?? null, role });
     router.push("/dashboard");
   }
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={styles.page}>
-        <p style={{ color: "#666", fontSize: 14 }}>Loading projects…</p>
+      <div className="min-h-screen bg-background flex items-start justify-center px-8 py-12">
+        <p className="text-slate-500 text-sm">Loading projects…</p>
       </div>
     );
   }
 
-  // ── Error ────────────────────────────────────────────────────────────────
   if (error) {
     return (
-      <div style={styles.page}>
-        <div style={styles.errorBox}>{error}</div>
+      <div className="min-h-screen bg-background flex items-start justify-center px-8 py-12">
+        <div className="bg-destructive/10 border border-red-900 rounded-md px-4 py-3 text-red-400 text-[13px]">{error}</div>
       </div>
     );
   }
 
-  // ── Main ─────────────────────────────────────────────────────────────────
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="min-h-screen bg-background flex items-start justify-center px-8 py-12">
+      <div className="w-full max-w-[880px]">
 
         {/* Header */}
-        <div style={styles.header}>
+        <div className="flex items-end justify-between mb-8">
           <div>
-            <h1 style={styles.title}>Switch project</h1>
-            <p style={styles.subtitle}>Select a workspace to continue</p>
+            <h1 className="m-0 text-[26px] font-bold text-foreground">Switch project</h1>
+            <p className="mt-1.5 mb-0 text-[13px] text-slate-500">Select a workspace to continue</p>
           </div>
           {isAdmin && (
-            <Link href="/projects/new" style={styles.newBtn}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+            <Link href="/projects/new" className={newBtnClass}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
                 <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
               New project
@@ -105,15 +92,15 @@ export default function ProjectsClient() {
 
         {/* Empty state */}
         {projects.length === 0 ? (
-          <div style={styles.emptyState}>
-            <p style={{ margin: "0 0 16px", fontSize: 15, color: "#888" }}>
+          <div className="bg-card border border-slate-800 rounded-xl px-10 py-15 text-center">
+            <p className="m-0 mb-4 text-[15px] text-slate-400">
               {isAdmin
                 ? "No projects yet — create your first one"
                 : "No projects assigned to you yet. Contact your admin."}
             </p>
             {isAdmin && (
-              <Link href="/projects/new" style={styles.newBtn}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+              <Link href="/projects/new" className={newBtnClass}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
                   <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
                 New project
@@ -122,20 +109,11 @@ export default function ProjectsClient() {
           </div>
         ) : (
           <>
-            {/* Section label */}
-            <div style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: "#666",
-              textTransform: "uppercase",
-              letterSpacing: "0.07em",
-              marginBottom: 12,
-            }}>
+            <div className="text-[11px] font-medium text-slate-500 uppercase tracking-[0.07em] mb-3">
               Your projects — {projects.length}
             </div>
 
-            {/* Grid */}
-            <div style={styles.grid}>
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
               {projects.map((project) => {
                 const role = userId ? myRole(project, userId) : "MEMBER";
                 const isActive = activeProject?.id === project.id;
@@ -144,79 +122,59 @@ export default function ProjectsClient() {
                 return (
                   <div
                     key={project.id}
-                    style={{
-                      ...styles.card,
-                      border: isActive ? "1px solid #2563eb" : "1px solid #2a2a2a",
-                    }}
+                    className={cn(
+                      "bg-card rounded-xl p-5 flex flex-col gap-3 border",
+                      isActive ? "border-blue-600" : "border-slate-800"
+                    )}
                   >
                     {/* Avatar + role badge row */}
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: isActive ? "#1e3a5f" : "#1a1a2e",
-                        color: "#60a5fa",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        border: "1px solid #1e3a5f",
-                        flexShrink: 0,
-                      }}>
+                    <div className="flex items-center justify-between">
+                      <div className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-medium text-blue-400 border border-blue-900 shrink-0",
+                        isActive ? "bg-blue-900/40" : "bg-blue-950/30"
+                      )}>
                         {initials}
                       </div>
-                      <span style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        borderRadius: 4,
-                        padding: "2px 8px",
-                        letterSpacing: "0.05em",
-                        textTransform: "uppercase",
-                        background: role === "OWNER" ? "#1e3a5f" : "#1a2a1a",
-                        color:      role === "OWNER" ? "#60a5fa" : "#4ade80",
-                        border:     role === "OWNER" ? "1px solid #2563eb44" : "1px solid #16a34a44",
-                      }}>
+                      <span className={cn(
+                        "text-[11px] font-semibold rounded px-2 py-0.5 uppercase tracking-[0.05em] border",
+                        role === "OWNER"
+                          ? "bg-blue-950/40 text-blue-400 border-blue-800/30"
+                          : "bg-emerald-950/30 text-emerald-400 border-emerald-800/30"
+                      )}>
                         {role}
                       </span>
                     </div>
 
                     {/* Project name */}
-                    <h2 style={styles.cardName}>{project.name}</h2>
+                    <h2 className="m-0 text-base font-bold text-foreground">{project.name}</h2>
 
                     {/* Description */}
                     {project.description && (
-                      <p style={styles.cardDesc}>{project.description}</p>
+                      <p className="m-0 text-[13px] text-slate-400 leading-relaxed">{project.description}</p>
                     )}
 
                     {/* Divider */}
-                    <div style={{ height: 1, background: "#1e1e1e", margin: "12px 0" }} />
+                    <div className="h-px bg-slate-900" />
 
                     {/* Footer row */}
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 12, color: "#555" }}>
+                    <div className="flex justify-between">
+                      <span className="text-xs text-slate-500">
                         Created {new Date(project.createdAt).toLocaleDateString(undefined, {
                           year: "numeric", month: "short", day: "numeric",
                         })}
                       </span>
-                      <span style={{ fontSize: 12, color: "#555" }}>0 test cases</span>
+                      <span className="text-xs text-slate-500">0 test cases</span>
                     </div>
 
                     {/* Select / Currently active button */}
                     <button
                       onClick={isActive ? undefined : () => selectProject(project)}
-                      style={{
-                        width: "100%",
-                        padding: "8px 0",
-                        borderRadius: 7,
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: isActive ? "default" : "pointer",
-                        background: isActive ? "#1e3a5f" : "transparent",
-                        border:     isActive ? "1px solid #2563eb44" : "1px solid #333",
-                        color:      isActive ? "#60a5fa" : "#eee",
-                      }}
+                      className={cn(
+                        "w-full py-2 rounded-lg text-[13px] font-medium border transition-colors",
+                        isActive
+                          ? "bg-blue-950/40 border-blue-800/30 text-blue-400 cursor-default"
+                          : "bg-transparent border-border text-foreground cursor-pointer hover:bg-slate-700/30"
+                      )}
                     >
                       {isActive ? "Currently active" : "Select"}
                     </button>
@@ -231,89 +189,5 @@ export default function ProjectsClient() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#111",
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "center",
-    padding: "48px 32px",
-  },
-  container: {
-    width: "100%",
-    maxWidth: 880,
-  },
-  header: {
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-    marginBottom: 32,
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    fontSize: 13,
-    color: "#666",
-  },
-  newBtn: {
-    background: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: 7,
-    padding: "9px 18px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    textDecoration: "none",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 7,
-  },
-  emptyState: {
-    background: "#1a1a1a",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    padding: "60px 40px",
-    textAlign: "center",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-    gap: 16,
-  },
-  card: {
-    background: "#1a1a1a",
-    borderRadius: 12,
-    padding: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-  cardName: {
-    margin: 0,
-    fontSize: 16,
-    fontWeight: 700,
-    color: "#fff",
-  },
-  cardDesc: {
-    margin: 0,
-    fontSize: 13,
-    color: "#888",
-    lineHeight: 1.5,
-  },
-  errorBox: {
-    background: "#2d1414",
-    border: "1px solid #5c2020",
-    borderRadius: 6,
-    padding: "12px 16px",
-    color: "#f87171",
-    fontSize: 13,
-  },
-};
+const newBtnClass =
+  "bg-blue-600 text-white border-none rounded-lg px-4 py-2 text-[13px] font-semibold cursor-pointer no-underline inline-flex items-center gap-1.5 hover:bg-blue-500 transition-colors";

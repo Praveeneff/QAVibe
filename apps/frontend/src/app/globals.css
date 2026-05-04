@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  ============================================
+  QAVIBE DESIGN SYSTEM — SPACING SCALE
+  ============================================
+
+  Base unit: 4px (0.25rem)
+
+  PADDING & MARGIN:
+  p-1  = 4px   | Tight spacing, badges
+  p-2  = 8px   | Small gaps, inline elements
+  p-3  = 12px  | Medium padding
+  p-4  = 16px  | Default card padding
+  p-6  = 24px  | Section spacing
+  p-8  = 32px  | Page-level spacing
+  p-12 = 48px  | Hero sections
+
+  GAPS (flex/grid):
+  gap-1 = 4px   | Tight groups
+  gap-2 = 8px   | Default inline spacing
+  gap-4 = 16px  | Card content spacing
+  gap-6 = 24px  | Section breaks
+
+  VERTICAL STACKS:
+  space-y-2 = 8px between children
+  space-y-4 = 16px between children
+  space-y-6 = 24px between children
+
+  ============================================
+*/
+
+/*
+  ============================================
+  QAVIBE TYPOGRAPHY SCALE
+  ============================================
+
+  Intentional use of precise font sizes outside
+  Tailwind's default scale:
+
+  text-[10px]  — Micro labels (status pills)
+  text-[11px]  — Captions, timestamps
+  text-[13px]  — Body text, descriptions
+  text-[14px]  — Default, forms
+  text-[22px]  — Page headings
+  text-[26px]  — Large headings
+  text-[28px]  — Hero numbers
+
+  DO NOT replace with Tailwind defaults:
+  text-sm = 14px (not 13px)
+  text-xs = 12px (not 11px)
+
+  ============================================
+*/
+
+/*
+  QAVibe v2 — Purple & Teal dark theme.
+
+  Design system:
+    Primary   → Purple  #8b5cf6  (CTAs, highlights, brand)
+    Secondary → Teal    #14b8a6  (success states, secondary actions)
+    Accent    → Violet  #a78bfa  (hover tints, subtle highlights)
+    BG        → Navy    #0a0f1e  (main page background)
+    Card      → Slate   #1e293b  (elevated surfaces, modals)
+    Border    → Slate-700 #334155
+
+  All shadcn/ui components inherit these automatically via CSS variables.
+  QAVibe is dark-only — variables are set on :root directly.
+*/
+
+@layer base {
+  :root {
+    /* ── Surfaces ──────────────────────────────────────────────────────────── */
+    --background:       222 47% 8%;     /* #0a0f1e  navy                        */
+    --foreground:       210 40% 96%;    /* #f1f5f9  ice-white                   */
+
+    --card:             215 28% 17%;    /* #1e293b  slate-800                   */
+    --card-foreground:  210 40% 96%;
+
+    --popover:          217 33% 12%;    /* #111827  deeper popover              */
+    --popover-foreground: 215 16% 65%; /* #8fa3b8                               */
+
+    /* ── Brand — purple primary ────────────────────────────────────────────── */
+    --primary:          263 83% 58%;    /* #8b5cf6  violet-500                  */
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary — teal ──────────────────────────────────────────────────── */
+    --secondary:        173 58% 39%;    /* #14b8a6  teal-500                    */
+    --secondary-foreground: 0 0% 100%;
+
+    /* ── Muted — dark slate, low contrast ─────────────────────────────────── */
+    --muted:            217 33% 17%;    /* #1e293b  slate-800 (same as card)    */
+    --muted-foreground: 215 16% 58%;    /* #94a3b8  slate-400                   */
+
+    /* ── Accent — violet hover tint ────────────────────────────────────────── */
+    --accent:           263 30% 20%;    /* #271952  deep violet surface         */
+    --accent-foreground: 263 87% 76%;  /* #a78bfa  violet-400                  */
+
+    /* ── Destructive — red ─────────────────────────────────────────────────── */
+    --destructive:      0 84% 60%;      /* #ef4444  red-500                     */
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Chrome ─────────────────────────────────────────────────────────────── */
+    --border:           215 25% 27%;    /* #334155  slate-700                   */
+    --input:            215 25% 27%;    /* same as border                       */
+    --ring:             263 83% 58%;    /* matches --primary                    */
+
+    /* ── Shape ───────────────────────────────────────────────────────────────  */
+    --radius:           0.5rem;
+  }
+
+  /* QAVibe is dark-only */
+  html {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* ── Typography scale ──────────────────────────────────────────────────────── */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-foreground font-semibold tracking-tight;
+  }
+
+  /* ── Focus ring — purple ───────────────────────────────────────────────────── */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* ── Scrollbar — slate with purple hover ──────────────────────────────────── */
+  ::-webkit-scrollbar          { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track    { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb    { background: hsl(var(--border)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); }
+}
+
+/* ── Utility layer additions ─────────────────────────────────────────────────── */
+@layer utilities {
+  /* Glass morphism card effect — apply as class="glass" */
+  .glass {
+    @apply bg-card/90 backdrop-blur-sm border border-border/60;
+  }
+
+  /* Glow ring around focussed/active elements */
+  .ring-glow {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.25);
+  }
+
+  /* Status colour helpers — semantic, not tied to Tailwind's palette */
+  .status-pass    { @apply text-emerald-400 bg-emerald-950/60 border-emerald-800/50; }
+  .status-fail    { @apply text-red-400 bg-red-950/60 border-red-800/50; }
+  .status-blocked { @apply text-amber-400 bg-amber-950/60 border-amber-800/50; }
+  .status-skip    { @apply text-slate-400 bg-slate-800/60 border-slate-700/50; }
+  .status-pending { @apply text-slate-500 bg-slate-900/60 border-slate-700/30; }
+
+  /* Severity helpers */
+  .severity-critical { @apply text-red-400    bg-red-950/50    border-red-800/40; }
+  .severity-high     { @apply text-amber-400  bg-amber-950/50  border-amber-800/40; }
+  .severity-medium   { @apply text-violet-400 bg-violet-950/50 border-violet-800/40; }
+  .severity-low      { @apply text-slate-400  bg-slate-800/50  border-slate-700/40; }
+}

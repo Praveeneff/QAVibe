@@ -2,9 +2,12 @@
 
 import { Suspense, useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getSuites, getActiveProjectId, type TestSuite, type TestCase } from "../../lib/api";
+import { cn } from "@/lib/utils";
+import { getSuites, getActiveProjectId, handle401Redirect, type TestSuite, type TestCase } from "../../lib/api";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { getStoredToken } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
@@ -14,6 +17,7 @@ const PROGRESS_MESSAGES = [
   "Generating test cases...",
 ];
 
+// Badge uses dynamic hex transparency — must stay inline
 const SEVERITY_COLORS: Record<string, string> = {
   critical: "#ef4444",
   high:     "#f97316",
@@ -55,42 +59,33 @@ function formatBytes(bytes: number): string {
 
 function GenerateBrdPageInner() {
   const { loading: authLoading } = useRequireAuth();
+  const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const paramSuiteId = searchParams.get("suiteId") ?? "";
 
-  const [suites, setSuites]         = useState<TestSuite[]>([]);
-  const [file, setFile]             = useState<File | null>(null);
-  const [dragOver, setDragOver]     = useState(false);
-  const [suiteId, setSuiteId]       = useState(paramSuiteId);
-  const [maxCases, setMaxCases]     = useState(20);
-  const [loading, setLoading]       = useState(false);
+  const [suites, setSuites]           = useState<TestSuite[]>([]);
+  const [file, setFile]               = useState<File | null>(null);
+  const [dragOver, setDragOver]       = useState(false);
+  const [suiteId, setSuiteId]         = useState(paramSuiteId);
+  const [maxCases, setMaxCases]       = useState(50);
+  const [loading, setLoading]         = useState(false);
   const [progressIdx, setProgressIdx] = useState(0);
-  const [error, setError]           = useState("");
-  const [result, setResult]         = useState<{ generated: number; cases: TestCase[]; mode?: string; modules?: { module: string; suiteId: string; count: number }[] } | null>(null);
-  const [useModules, setUseModules] = useState(true);
+  const [error, setError]             = useState("");
+  const [result, setResult]           = useState<{ generated: number; cases: TestCase[]; mode?: string; modules?: { module: string; suiteId: string; count: number }[] } | null>(null);
+  const [useModules, setUseModules]   = useState(true);
   const [moduleResults, setModuleResults] = useState<{ module: string; suiteId: string; count: number }[]>([]);
 
-  const fileInputRef  = useRef<HTMLInputElement>(null);
-  const intervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
-  const dropZoneRef   = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const intervalRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  useEffect(() => { getSuites(getActiveProjectId() ?? undefined).then(setSuites).catch(() => {}); }, []);
   useEffect(() => {
-    getSuites().then(setSuites).catch(() => {});
-  }, []);
-
-  // Pre-select suite from URL param once suites load
-  useEffect(() => {
-    if (paramSuiteId && suites.some((s) => s.id === paramSuiteId)) {
-      setSuiteId(paramSuiteId);
-    }
+    if (paramSuiteId && suites.some((s) => s.id === paramSuiteId)) setSuiteId(paramSuiteId);
   }, [paramSuiteId, suites]);
 
   const stopProgress = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
   }, []);
 
   const startProgress = useCallback(() => {
@@ -108,9 +103,7 @@ function GenerateBrdPageInner() {
       setError("Unsupported format. Please upload a PDF, Word (.docx), or plain text (.txt) file.");
       return;
     }
-    setError("");
-    setResult(null);
-    setFile(f);
+    setError(""); setResult(null); setFile(f);
   }
 
   function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -119,19 +112,14 @@ function GenerateBrdPageInner() {
   }
 
   function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragOver(false);
+    e.preventDefault(); setDragOver(false);
     if (e.dataTransfer.files[0]) acceptFile(e.dataTransfer.files[0]);
   }
 
   async function handleGenerate() {
     if (!file) return;
-    setLoading(true);
-    setError("");
-    setResult(null);
-    setModuleResults([]);
-    startProgress();
-
+    setLoading(true); setError(""); setResult(null); setModuleResults([]); startProgress();
+    toast({ title: "Processing BRD…" });
     try {
       const form = new FormData();
       form.append("file", file);
@@ -140,107 +128,77 @@ function GenerateBrdPageInner() {
       form.append("useModules", useModules ? "true" : "false");
       const projectId = getActiveProjectId();
       if (projectId) form.append("projectId", projectId);
-
       const token = getStoredToken();
       const res = await fetch(`${BASE_URL}/ai/generate-from-brd`, {
         method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: form,
       });
-
       if (!res.ok) {
+        if (res.status === 401) { handle401Redirect(); return; }
         const body = await res.json().catch(() => ({}));
-        if (res.status === 503) {
-          throw new Error("AI providers are busy right now — please wait a moment and try again.");
-        }
+        if (res.status === 503) throw new Error("AI providers are busy right now — please wait a moment and try again.");
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-
       const data = await res.json();
-      if (data.mode === "modules" && data.modules) {
-        setModuleResults(data.modules);
-      }
+      if (data.mode === "modules" && data.modules) setModuleResults(data.modules);
       setResult(data);
+      toast({ title: `${data.generated} test case${data.generated !== 1 ? "s" : ""} generated` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error. Please try again.");
+      const msg = err instanceof Error ? err.message : "Unexpected error. Please try again.";
+      setError(msg);
+      toast({ variant: "destructive", title: "Generation failed", description: msg });
     } finally {
-      stopProgress();
-      setLoading(false);
+      stopProgress(); setLoading(false);
     }
   }
 
   function handleReset() {
-    setFile(null);
-    setResult(null);
-    setError("");
-    setSuiteId(paramSuiteId);
-    setMaxCases(20);
+    setFile(null); setResult(null); setError(""); setSuiteId(paramSuiteId); setMaxCases(50);
   }
 
   const progressLabel = PROGRESS_MESSAGES[progressIdx];
   if (authLoading) return null;
 
   return (
-    <main style={{ padding: 32, minHeight: "100vh" }}>
-      <div style={{ maxWidth: 680, margin: "0 auto" }}>
+    <main className="px-8 py-8 min-h-screen">
+      <div className="max-w-[680px] mx-auto">
 
-        {/* Header */}
-        <h1 style={{ margin: "0 0 6px", fontSize: 24 }}>Generate from BRD</h1>
-        <p style={{ margin: "0 0 32px", color: "#666", fontSize: 14 }}>
+        <h1 className="m-0 mb-1.5 text-2xl font-bold text-foreground">Generate from BRD</h1>
+        <p className="mt-0 mb-8 text-slate-500 text-sm">
           Upload a requirements document and AI will generate test cases automatically.
         </p>
 
         {/* Upload zone */}
         <div
-          ref={dropZoneRef}
           onClick={() => !file && fileInputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={onDrop}
-          style={{
-            border: `2px dashed ${dragOver ? "#0070f3" : file ? "#22c55e" : "#333"}`,
-            borderRadius: 10,
-            padding: "36px 24px",
-            textAlign: "center",
-            cursor: file ? "default" : "pointer",
-            transition: "border-color 0.15s",
-            background: dragOver ? "#0070f308" : "#161616",
-            marginBottom: 20,
-          }}
+          className={cn(
+            "rounded-lg py-9 px-6 text-center transition-colors mb-5",
+            file ? "cursor-default" : "cursor-pointer",
+            dragOver
+              ? "border-2 border-dashed border-primary bg-primary/5"
+              : file
+                ? "border-2 border-dashed border-emerald-600 bg-popover"
+                : "border-2 border-dashed border-slate-700 bg-popover hover:border-slate-500",
+          )}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={onFileInput}
-            style={{ display: "none" }}
-          />
-
+          <input ref={fileInputRef} type="file" accept=".pdf,.docx,.txt" onChange={onFileInput} className="hidden" />
           {file ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-              <span style={{ fontSize: 28 }}>
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-[28px]">
                 {file.name.endsWith(".pdf") ? "📄" : file.name.endsWith(".docx") ? "📝" : "📃"}
               </span>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontWeight: 600, color: "#eee" }}>{file.name}</div>
-                <div style={{ fontSize: 12, color: "#888" }}>{formatBytes(file.size)}</div>
+              <div className="text-left">
+                <div className="font-semibold text-foreground">{file.name}</div>
+                <div className="text-xs text-slate-400">{formatBytes(file.size)}</div>
               </div>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null); }}
-                style={{
-                  marginLeft: 8,
-                  background: "none",
-                  border: "1px solid #444",
-                  borderRadius: 4,
-                  color: "#aaa",
-                  cursor: "pointer",
-                  fontSize: 16,
-                  lineHeight: 1,
-                  padding: "2px 7px",
-                }}
+                className="ml-2 bg-transparent border border-slate-600 rounded text-muted-foreground cursor-pointer text-base leading-none px-1.5 py-px hover:border-slate-400"
                 title="Remove file"
               >
                 ×
@@ -248,11 +206,11 @@ function GenerateBrdPageInner() {
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>📂</div>
-              <div style={{ color: "#ccc", marginBottom: 6, fontSize: 15 }}>
-                Drag & drop a file here, or <span style={{ color: "#0070f3" }}>click to browse</span>
+              <div className="text-4xl mb-2.5">📂</div>
+              <div className="text-muted-foreground mb-1.5 text-[15px]">
+                Drag & drop a file here, or <span className="text-primary">click to browse</span>
               </div>
-              <div style={{ color: "#555", fontSize: 12 }}>
+              <div className="text-slate-500 text-xs">
                 Supported formats: PDF, Word (.docx), plain text
               </div>
             </>
@@ -260,79 +218,44 @@ function GenerateBrdPageInner() {
         </div>
 
         {/* Options row */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
-          <label style={{ flex: 1, fontSize: 13 }}>
-            <div style={{ color: "#888", marginBottom: 4 }}>Assign to Suite</div>
-            <select
-              value={suiteId}
-              onChange={(e) => setSuiteId(e.target.value)}
-              style={selectStyle}
-            >
+        <div className="flex gap-4 mb-5">
+          <label className="flex-1 text-[13px]">
+            <div className="text-slate-400 mb-1">Assign to Suite</div>
+            <select value={suiteId} onChange={(e) => setSuiteId(e.target.value)} className={selectClass}>
               <option value="">No suite</option>
-              {suites.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
+              {suites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </label>
-
-          <label style={{ width: 140, fontSize: 13 }}>
-            <div style={{ color: "#888", marginBottom: 4 }}>Max cases (5–50)</div>
+          <label className="w-[140px] text-[13px]">
+            <div className="text-slate-400 mb-1">Max cases (5–50)</div>
             <input
-              type="number"
-              min={5}
-              max={200}
-              value={maxCases}
+              type="number" min={5} max={200} value={maxCases}
               onChange={(e) => setMaxCases(Math.min(200, Math.max(5, parseInt(e.target.value, 10) || 20)))}
-              style={inputStyle}
+              className={inputClass}
             />
           </label>
         </div>
 
         {/* Module-based toggle */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 16,
-          padding: "12px 16px",
-          background: "#0a1628",
-          border: "1px solid #1e3a5f",
-          borderRadius: 8,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: "#93c5fd", fontWeight: 600, marginBottom: 2 }}>
-              🧩 Generate by Modules
-            </div>
-            <div style={{ fontSize: 12, color: "#555" }}>
+        <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-blue-950/20 border border-blue-900 rounded-lg">
+          <div className="flex-1">
+            <div className="text-[13px] text-blue-300 font-semibold mb-0.5">🧩 Generate by Modules</div>
+            <div className="text-xs text-slate-500">
               AI identifies modules in your BRD and creates a suite + test cases for each one automatically
             </div>
           </div>
           <button
             type="button"
             onClick={() => setUseModules(!useModules)}
-            style={{
-              width: 44,
-              height: 24,
-              borderRadius: 12,
-              border: "none",
-              background: useModules ? "#0070f3" : "#333",
-              cursor: "pointer",
-              position: "relative",
-              flexShrink: 0,
-              transition: "background 0.2s",
-            }}
+            className={cn(
+              "w-11 h-6 rounded-full border-none relative shrink-0 cursor-pointer transition-colors",
+              useModules ? "bg-primary" : "bg-slate-700",
+            )}
           >
-            <span style={{
-              position: "absolute",
-              top: 2,
-              left: useModules ? 22 : 2,
-              width: 20,
-              height: 20,
-              borderRadius: "50%",
-              background: "#fff",
-              transition: "left 0.2s",
-              display: "block",
-            }} />
+            <span className={cn(
+              "absolute top-[2px] w-5 h-5 rounded-full bg-white transition-[left]",
+              useModules ? "left-[22px]" : "left-[2px]",
+            )} />
           </button>
         </div>
 
@@ -341,145 +264,85 @@ function GenerateBrdPageInner() {
           type="button"
           onClick={handleGenerate}
           disabled={!file || loading}
-          style={{
-            ...btnStyle,
-            opacity: !file || loading ? 0.5 : 1,
-            cursor: !file || loading ? "not-allowed" : "pointer",
-            width: "100%",
-            marginBottom: 16,
-          }}
+          className={cn(primaryBtnClass, "w-full mb-4", (!file || loading) && "opacity-50 cursor-not-allowed")}
         >
           {loading ? progressLabel : "Generate Test Cases"}
         </button>
 
-        {/* Error */}
         {error && (
-          <div style={{
-            padding: "12px 16px",
-            borderRadius: 6,
-            background: "#2d1010",
-            border: "1px solid #7a2020",
-            color: "#ff8a80",
-            fontSize: 13,
-            marginBottom: 16,
-          }}>
+          <div className="px-4 py-3 rounded-md bg-destructive/10 border border-red-900 text-red-400 text-[13px] mb-4">
             {error}
           </div>
         )}
 
-        {/* Result */}
         {result && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              marginBottom: 20,
-              padding: "12px 16px",
-              borderRadius: 6,
-              background: "#0d2d0d",
-              border: "1px solid #1a5c1a",
-            }}>
-              <span style={{ color: "#4caf50", fontSize: 20 }}>✓</span>
-              <span style={{ color: "#4caf50", fontWeight: 600 }}>
+          <div className="mt-2">
+            <div className="flex items-center gap-4 mb-5 px-4 py-3 rounded-md bg-emerald-950/30 border border-emerald-800">
+              <span className="text-emerald-400 text-xl">✓</span>
+              <span className="text-emerald-400 font-semibold">
                 {result.generated} test case{result.generated !== 1 ? "s" : ""} generated
                 {suiteId && suites.find((s) => s.id === suiteId)
                   ? ` and added to "${suites.find((s) => s.id === suiteId)!.name}"`
                   : ""}
               </span>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                {suiteId && (
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/test-cases?suiteId=${suiteId}`)}
-                    style={{ ...btnStyle, fontSize: 13, padding: "6px 14px" }}
-                  >
+              <div className="ml-auto flex gap-2">
+                {result.mode === "modules" && result.modules && result.modules.length > 0 ? (
+                  <button type="button" onClick={() => router.push(`/test-cases?suiteId=${result.modules![0].suiteId}`)} className={cn(primaryBtnClass, "text-[13px] px-3.5 py-1.5")}>
+                    View test cases
+                  </button>
+                ) : suiteId ? (
+                  <button type="button" onClick={() => router.push(`/test-cases?suiteId=${suiteId}`)} className={cn(primaryBtnClass, "text-[13px] px-3.5 py-1.5")}>
                     View in suite
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  style={{ ...btnStyle, fontSize: 13, padding: "6px 14px", background: "#2a2a2a" }}
-                >
+                ) : null}
+                <button type="button" onClick={handleReset} className="bg-slate-800 text-foreground border-none rounded-md px-3.5 py-1.5 text-[13px] font-semibold cursor-pointer hover:bg-slate-700">
                   Generate more
                 </button>
               </div>
             </div>
 
-            {/* Module breakdown */}
             {moduleResults.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, color: "#666", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  Modules Generated
-                </div>
+              <div className="mb-5">
+                <div className="text-xs text-slate-500 uppercase tracking-[0.08em] mb-2">Modules Generated</div>
                 {moduleResults.map((m, i) => (
-                  <div key={i} style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "8px 12px",
-                    background: "#0a1628",
-                    border: "1px solid #1e3a5f",
-                    borderRadius: 6,
-                    marginBottom: 6,
-                  }}>
-                    <div style={{ fontSize: 13, color: "#93c5fd" }}>📁 {m.module}</div>
-                    <span style={{
-                      fontSize: 12,
-                      background: "#0070f3",
-                      color: "#fff",
-                      borderRadius: 10,
-                      padding: "2px 8px",
-                      fontWeight: 600,
-                    }}>
-                      {m.count} cases
-                    </span>
+                  <div key={i} className="flex items-center justify-between px-3 py-2 bg-blue-950/20 border border-blue-900 rounded-md mb-1.5">
+                    <div className="text-[13px] text-blue-300">📁 {m.module}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-primary text-white rounded-full px-2 py-px font-semibold">
+                        {m.count} cases
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/test-cases?suiteId=${m.suiteId}`)}
+                        className="text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer bg-transparent border-none transition-colors"
+                      >
+                        View →
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Case cards */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="flex flex-col gap-2.5">
               {result.cases.map((tc) => (
-                <div
-                  key={tc.id}
-                  style={{
-                    background: "#1a1a1a",
-                    border: "1px solid #2a2a2a",
-                    borderRadius: 6,
-                    padding: "12px 16px",
-                  }}
-                >
-                  <div style={{ fontWeight: 500, color: "#eee", marginBottom: 8, fontSize: 14 }}>
-                    {tc.title}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <Badge
-                      label={tc.category}
-                      color={CATEGORY_COLORS[tc.category] ?? "#6b7280"}
-                    />
-                    <Badge
-                      label={tc.severity}
-                      color={SEVERITY_COLORS[tc.severity] ?? "#6b7280"}
-                    />
-                    <Badge
-                      label={tc.priority}
-                      color="#6b7280"
-                    />
+                <div key={tc.id} className="bg-card border border-slate-800 rounded-md px-4 py-3">
+                  <div className="font-medium text-foreground mb-2 text-sm">{tc.title}</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <Badge label={tc.category} color={CATEGORY_COLORS[tc.category] ?? "#6b7280"} />
+                    <Badge label={tc.severity}  color={SEVERITY_COLORS[tc.severity]  ?? "#6b7280"} />
+                    <Badge label={tc.priority}  color="#6b7280" />
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
+
       </div>
     </main>
   );
 }
-
-import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function GenerateBrdPage() {
   return (
@@ -491,30 +354,6 @@ export default function GenerateBrdPage() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const baseInput: React.CSSProperties = {
-  display: "block",
-  width: "100%",
-  padding: "7px 10px",
-  fontSize: 14,
-  boxSizing: "border-box",
-  background: "#1a1a1a",
-  color: "#eee",
-  border: "1px solid #444",
-  borderRadius: 4,
-};
-
-const selectStyle: React.CSSProperties = { ...baseInput };
-const inputStyle: React.CSSProperties  = { ...baseInput };
-
-const btnStyle: React.CSSProperties = {
-  padding: "10px 20px",
-  fontSize: 14,
-  fontWeight: 600,
-  background: "#0070f3",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  cursor: "pointer",
-};
+const inputClass  = "block w-full px-2.5 py-[7px] text-sm bg-card text-foreground border border-slate-700 rounded focus:outline-none focus:border-primary transition-colors";
+const selectClass = "block w-full px-2.5 py-[7px] text-sm bg-card text-foreground border border-slate-700 rounded focus:outline-none focus:border-primary transition-colors cursor-pointer";
+const primaryBtnClass = "px-5 py-2.5 text-sm font-semibold bg-primary text-white border-none rounded-md cursor-pointer hover:bg-primary/90 transition-colors";

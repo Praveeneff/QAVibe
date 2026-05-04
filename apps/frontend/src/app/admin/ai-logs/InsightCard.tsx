@@ -1,27 +1,24 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 
 const DISPLAY_NAMES: Record<string, string> = {
   gemini:     "Gemini",
   openai:     "OpenAI",
   claude:     "Claude",
-  openrouter: "OpenRouter",
+  groq:       "Groq",
 };
 
 function display(provider: string): string {
-  return DISPLAY_NAMES[provider.toLowerCase()] ?? provider;
+  const key = provider.toLowerCase().split("/")[0];
+  return DISPLAY_NAMES[key] ?? provider;
 }
 
-interface Props {
-  /** Provider names in recommended order (already sorted by page). Empty = no data. */
-  ranked: string[];
-}
+interface Props { ranked: string[] }
 
 export default function InsightCard({ ranked }: Props) {
   const [copied, setCopied] = useState(false);
-
-  // Hide entirely when no logs
   if (ranked.length === 0) return null;
 
   async function handleCopy() {
@@ -31,41 +28,22 @@ export default function InsightCard({ ranked }: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // fallback for non-secure contexts
       prompt("Copy this:", text);
     }
   }
 
   return (
-    <div
-      style={{
-        background: "#161b2e",
-        border: "1px solid #2a3a5a",
-        borderLeft: "3px solid #3b82f6",
-        borderRadius: 8,
-        padding: "16px 20px",
-        marginTop: 16,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 16,
-        flexWrap: "wrap",
-      }}
-    >
-      <p style={{ margin: 0, fontSize: 14, color: "#bbb", lineHeight: 1.6 }}>
+    <div className="mt-4 flex items-center justify-between gap-4 flex-wrap px-4 py-3.5 rounded-lg border border-violet-500/15 bg-violet-500/5">
+      <p className="m-0 text-[13px] text-slate-400 leading-relaxed">
         {ranked.length === 1 ? (
-          "Only one provider has data — generate more to get ranking insights"
+          "Only one provider has data — generate more to get ranking insights."
         ) : (
           <>
-            Based on your generation history, recommended provider order is:{" "}
+            Recommended provider order based on your history:{" "}
             {ranked.map((p, i) => (
               <span key={p}>
-                <strong style={{ color: "#eee" }}>
-                  {i + 1}.&nbsp;{display(p)}
-                </strong>
-                {i < ranked.length - 1 && (
-                  <span style={{ color: "#444" }}> &nbsp;&nbsp;</span>
-                )}
+                <strong className="text-violet-300">{i + 1}.&nbsp;{display(p)}</strong>
+                {i < ranked.length - 1 && <span className="text-slate-700">{"  "}</span>}
               </span>
             ))}
           </>
@@ -75,19 +53,14 @@ export default function InsightCard({ ranked }: Props) {
       {ranked.length > 1 && (
         <button
           onClick={handleCopy}
-          style={{
-            flexShrink: 0,
-            padding: "6px 14px",
-            background: copied ? "#1a3a1a" : "transparent",
-            border: `1px solid ${copied ? "#4caf50" : "#3b82f6"}`,
-            color: copied ? "#4caf50" : "#5b9bd5",
-            borderRadius: 4,
-            fontSize: 13,
-            cursor: "pointer",
-            transition: "all 0.15s",
-          }}
+          className={cn(
+            "shrink-0 px-3 py-1.5 rounded-md text-[12px] font-medium border transition-all cursor-pointer",
+            copied
+              ? "border-teal-500/30 bg-teal-500/10 text-teal-400"
+              : "border-violet-500/30 text-violet-400 hover:bg-violet-500/10",
+          )}
         >
-          {copied ? "✓ Copied!" : "Copy order"}
+          {copied ? "✓ Copied" : "Copy order"}
         </button>
       )}
     </div>

@@ -14,6 +14,7 @@ import { AiLogsModule } from "./ai-logs/ai-logs.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { AdminModule } from "./admin/admin.module";
+import { ApiTestingModule } from "./api-testing/api-testing.module";
 
 const envPath = path.resolve(process.cwd(), ".env");
 
@@ -33,6 +34,7 @@ const envPath = path.resolve(process.cwd(), ".env");
     AuthModule,
     ProjectsModule,
     AdminModule,
+    ApiTestingModule,
   ],
   controllers: [AppController],
   providers: [

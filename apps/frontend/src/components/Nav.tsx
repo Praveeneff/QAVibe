@@ -3,122 +3,129 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import UserMenu from "./UserMenu";
+import { LogoFull } from "./Logo";
 
 const links = [
-  { href: "/test-cases",    label: "Test Cases" },
-  { href: "/runs",          label: "Runs" },
-  { href: "/my-tasks",      label: "My Tasks" },
+  { href: "/test-cases", label: "Test Cases" },
+  { href: "/runs",       label: "Runs" },
+  { href: "/api-tests",  label: "API Tests" },
+  { href: "/my-tasks",   label: "My Tasks" },
 ];
 
 const linksAfterUsage = [
-  { href: "/dashboard",     label: "Dashboard" },
+  { href: "/dashboard",  label: "Dashboard" },
 ];
 
 const aiLinks = [
-  { href: "/generate-brd",       label: "Generate from BRD" },
-  { href: "/generate-codebase",  label: "Generate from Codebase" },
+  { href: "/generate-brd",      label: "Generate from BRD" },
+  { href: "/generate-codebase", label: "Generate from Codebase" },
 ];
 
 const adminLinks = [
   { href: "/admin/ai-logs",    label: "AI Logs" },
   { href: "/admin/duplicates", label: "Duplicate Scanner" },
+  { href: "/admin/users",      label: "Users" },
 ];
+
+// Shared link class — muted default, foreground on hover, smooth transition
+const navLink =
+  "text-muted-foreground hover:text-foreground transition-colors duration-150 text-sm";
 
 export default function Nav() {
   const { user, loading, activeProject } = useAuth();
   const isAdmin = user?.role === "admin";
 
   return (
-    <nav style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 24,
-      padding: "12px 32px",
-      borderBottom: "1px solid #222",
-      background: "#0a0a0a",
-      fontSize: 14,
-    }}>
-      <Link href="/" style={{ color: "#fff", textDecoration: "none", fontWeight: 600, marginRight: 8 }}>
+    <nav className="sticky top-0 z-50 flex items-center gap-5 px-6 py-0 h-[45px] border-b border-border/60 bg-background/95 backdrop-blur-sm text-sm">
+
+      {/* ── Brand ── */}
+      <Link
+        href="/"
+        className="flex items-center gap-2 mr-1 font-bold text-primary hover:text-primary/80 transition-colors shrink-0"
+      >
+        <span className="w-6 h-6 rounded bg-primary/15 border border-primary/25 flex items-center justify-center text-xs font-bold text-primary">
+          Q
+        </span>
         QAVibe
       </Link>
 
-      {/* Project indicator */}
+      {/* ── Active project badge ── */}
       {!loading && user && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8 }}>
+        <div className="flex items-center gap-2 mr-1">
           {activeProject ? (
-            <span style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "#1a1a2e", border: "1px solid #2a2a4a",
-              borderRadius: 6, padding: "3px 10px", fontSize: 12,
-            }}>
-              <span style={{ color: "#60a5fa", fontWeight: 600 }}>▶</span>
-              <span style={{ color: "#ddd", fontWeight: 500 }}>{activeProject.name}</span>
-              <Link href="/projects" style={{ color: "#555", textDecoration: "none", fontSize: 11, marginLeft: 2 }}>
+            <span className="flex items-center gap-1.5 bg-primary/10 border border-primary/20 rounded-md px-2.5 py-1 text-xs leading-none">
+              <span className="text-primary font-bold leading-none">▶</span>
+              <span className="text-foreground font-medium max-w-[140px] truncate">
+                {activeProject.name}
+              </span>
+              <Link
+                href="/projects"
+                className="text-muted-foreground/60 hover:text-muted-foreground transition-colors ml-0.5"
+              >
                 Switch
               </Link>
             </span>
           ) : (
-            <Link href="/projects" style={{
-              display: "flex", alignItems: "center", gap: 4,
-              background: "#1a1a1a", border: "1px solid #333",
-              borderRadius: 6, padding: "3px 10px", fontSize: 12,
-              color: "#666", textDecoration: "none",
-            }}>
+            <Link
+              href="/projects"
+              className="flex items-center gap-1 bg-muted/50 border border-border hover:border-primary/30 rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-all"
+            >
               No project
-              <span style={{ color: "#444", fontSize: 11 }}>→ Select</span>
+              <span className="text-muted-foreground/50 ml-0.5">→ Select</span>
             </Link>
           )}
         </div>
       )}
 
+      {/* ── Nav links (only when project is active) ── */}
       {!loading && user && (
         activeProject ? (
           <>
             {links.map(({ href, label }) => (
-              <Link key={href} href={href} style={{ color: "#aaa", textDecoration: "none" }}>
+              <Link key={href} href={href} className={navLink}>
                 {label}
               </Link>
             ))}
 
             {!isAdmin && (
-              <Link href="/my-usage" style={{ color: "#aaa", textDecoration: "none" }}>
+              <Link href="/my-usage" className={navLink}>
                 My Usage
               </Link>
             )}
 
             {linksAfterUsage.map(({ href, label }) => (
-              <Link key={href} href={href} style={{ color: "#aaa", textDecoration: "none" }}>
+              <Link key={href} href={href} className={navLink}>
                 {label}
               </Link>
             ))}
 
-            {/* AI section — visible to all authenticated users */}
-            <span style={{ color: "#333", userSelect: "none" }}>|</span>
-            <span style={{ color: "#555", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            {/* ── AI section ── */}
+            <span className="text-border/80 select-none" aria-hidden>|</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
               AI
             </span>
             {aiLinks.map(({ href, label }) => (
-              <Link key={href} href={href} style={{ color: "#aaa", textDecoration: "none" }}>
+              <Link key={href} href={href} className={navLink}>
                 {label}
               </Link>
             ))}
 
-            {/* Admin section — only admins */}
+            {/* ── Admin section ── */}
             {isAdmin && (
               <>
-                <span style={{ color: "#333", userSelect: "none" }}>|</span>
-                <span style={{ color: "#555", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <span className="text-border/80 select-none" aria-hidden>|</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
                   Admin
                 </span>
                 {adminLinks.map(({ href, label }) => (
-                  <Link key={href} href={href} style={{ color: "#aaa", textDecoration: "none" }}>
+                  <Link key={href} href={href} className={navLink}>
                     {label}
                   </Link>
                 ))}
                 {activeProject && (
                   <Link
                     href={`/projects/${activeProject.id}/settings`}
-                    style={{ color: "#aaa", textDecoration: "none" }}
+                    className={navLink}
                   >
                     Settings
                   </Link>
@@ -127,15 +134,16 @@ export default function Nav() {
             )}
           </>
         ) : (
-          <span style={{ fontSize: 13, color: "#555" }}>
+          <span className="text-sm text-muted-foreground/60">
             Select a project to get started
           </span>
         )
       )}
 
-      {/* Spacer */}
-      <span style={{ flex: 1 }} />
+      {/* ── Spacer ── */}
+      <span className="flex-1" />
 
+      {/* ── User menu ── */}
       <UserMenu />
     </nav>
   );

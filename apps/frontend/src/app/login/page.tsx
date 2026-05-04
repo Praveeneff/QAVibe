@@ -3,11 +3,24 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router    = useRouter();
+  const { toast } = useToast();
 
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
@@ -20,122 +33,129 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email.trim(), password);
+      toast({ title: "Welcome back!" });
       const stored = localStorage.getItem("activeProject");
       router.push(stored ? "/dashboard" : "/projects");
     } catch (err: any) {
-      setError(err?.message ?? "Login failed");
+      const msg = err?.message ?? "Invalid credentials";
+      setError(msg);
+      toast({ variant: "destructive", title: "Login failed", description: msg });
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "#111",
-    }}>
-      <form onSubmit={handleSubmit} style={{
-        background: "#1a1a1a",
-        border: "1px solid #2a2a2a",
-        borderRadius: 12,
-        padding: "40px 48px",
-        width: 360,
-        display: "flex",
-        flexDirection: "column",
-        gap: 20,
-      }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff" }}>Sign in</h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#666" }}>
-            Welcome back to QAVibe
-          </p>
-        </div>
+    <div className="min-h-[calc(100vh-45px)] flex items-center justify-center px-4">
+      {/* Subtle radial glow behind the card */}
+      <div
+        className="pointer-events-none fixed inset-0 -z-10"
+        aria-hidden
+        style={{
+          background:
+            "radial-gradient(ellipse 65% 55% at 50% 38%, rgba(139,92,246,0.15) 0%, rgba(20,184,166,0.04) 55%, transparent 75%)",
+        }}
+      />
 
-        {error && (
-          <div style={{
-            background: "#2d1414",
-            border: "1px solid #5c2020",
-            borderRadius: 6,
-            padding: "10px 14px",
-            color: "#f87171",
-            fontSize: 13,
-          }}>
-            {error}
+      <Card className="w-full max-w-[400px] border-border/60 bg-card shadow-2xl shadow-black/40">
+        <CardHeader className="pb-6 pt-8 px-8 space-y-1">
+          {/* Brand mark */}
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center">
+              <span className="text-primary text-sm font-bold">Q</span>
+            </div>
+            <span className="text-sm font-semibold text-muted-foreground tracking-wide">
+              QAVibe
+            </span>
           </div>
-        )}
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Email
-          </span>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-        </label>
+          <CardTitle className="text-2xl font-bold text-foreground">
+            Sign in
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Welcome back — enter your credentials to continue
+          </CardDescription>
+        </CardHeader>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            Password
-          </span>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="••••••••"
-            style={{
-              background: "#111",
-              border: "1px solid #333",
-              borderRadius: 6,
-              padding: "9px 12px",
-              color: "#eee",
-              fontSize: 14,
-              outline: "none",
-            }}
-          />
-        </label>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="px-8 space-y-5">
+            {/* Error banner */}
+            {error && (
+              <div className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive/10 px-3.5 py-3 text-sm text-red-400 animate-fade-in">
+                <span className="mt-px leading-none text-base">⚠</span>
+                <span>{error}</span>
+              </div>
+            )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            background: loading ? "#1d3a5c" : "#2563eb",
-            border: "none",
-            borderRadius: 7,
-            padding: "11px 0",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-            transition: "background 0.15s",
-          }}
-        >
-          {loading ? "Signing in…" : "Sign in"}
-        </button>
+            {/* Email */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+              >
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="bg-background/60 border-border focus-visible:ring-primary/50"
+              />
+            </div>
 
-        <p style={{ margin: 0, fontSize: 13, color: "#666", textAlign: "center" }}>
-          No account?{" "}
-          <Link href="/register" style={{ color: "#60a5fa", textDecoration: "none" }}>
-            Register
-          </Link>
-        </p>
-      </form>
+            {/* Password */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+              >
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="bg-background/60 border-border focus-visible:ring-primary/50"
+              />
+            </div>
+          </CardContent>
+
+          <CardFooter className="flex flex-col gap-4 px-8 pb-8 pt-2">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full font-semibold"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </Button>
+
+            <p className="text-sm text-muted-foreground text-center">
+              No account?{" "}
+              <Link
+                href="/register"
+                className="text-primary hover:text-primary/80 font-medium transition-colors"
+              >
+                Register
+              </Link>
+            </p>
+          </CardFooter>
+        </form>
+      </Card>
     </div>
   );
 }

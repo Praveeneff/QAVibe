@@ -2,11 +2,13 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Param,
   Body,
   UseGuards,
   Request,
   BadRequestException,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
 } from "@nestjs/common";
@@ -14,6 +16,7 @@ import { Throttle, SkipThrottle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { RegisterDto } from "./register.dto";
+import { Role } from "@prisma/client";
 
 interface LoginBody { email: string; password: string; }
 
@@ -58,5 +61,26 @@ export class AuthController {
     const user = await this.authService.validateUser(id);
     if (!user) return { id, name: "Unknown" };
     return { id: user.id, name: user.name };
+  }
+
+  @Get("admin/users")
+  @SkipThrottle()
+  @UseGuards(JwtAuthGuard)
+  async listUsers(@Request() req: any) {
+    if (req.user.role !== "admin") throw new ForbiddenException("Admin only");
+    return this.authService.listUsers();
+  }
+
+  @Patch("admin/users/:id/role")
+  @UseGuards(JwtAuthGuard)
+  async setRole(
+    @Request() req: any,
+    @Param("id") id: string,
+    @Body("role") role: string,
+  ) {
+    if (req.user.role !== "admin") throw new ForbiddenException("Admin only");
+    if (req.user.sub === id) throw new BadRequestException("Cannot change your own role");
+    if (!["admin", "tester"].includes(role)) throw new BadRequestException("Invalid role");
+    return this.authService.setRole(id, role as Role);
   }
 }
